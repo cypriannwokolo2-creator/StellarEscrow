@@ -1,8 +1,5 @@
-[workspace]
-members = ["contract", "indexer"]
-
 [package]
-name = "stellar-escrow"
+name = "stellar-escrow-contract"
 version = "0.1.0"
 edition = "2021"
 

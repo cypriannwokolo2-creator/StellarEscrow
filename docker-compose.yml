@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: stellar_escrow
+      POSTGRES_USER: indexer
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  indexer:
+    build:
+      context: .
+      dockerfile: indexer/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://indexer:password@postgres:5432/stellar_escrow
+    depends_on:
+      - postgres
+    command: ["./indexer", "--config", "config.toml"]
+
+volumes:
+  postgres_data:

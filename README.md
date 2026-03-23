@@ -1,11 +1,15 @@
 
 # StellarEscrow
 
-Production-ready Soroban smart contract for peer-to-peer marketplace escrow on Stellar blockchain.
+Production-ready Soroban smart contract for peer-to-peer marketplace escrow on Stellar blockchain, with a comprehensive event indexing service.
 
 ## Overview
 
 StellarEscrow is a decentralized escrow system that enables secure peer-to-peer trades using USDC stablecoin. The platform connects buyers and sellers with optional arbitrators who can resolve disputes, with the smart contract managing escrow, fee collection, and settlement.
+
+The project includes:
+- **Smart Contract**: Soroban contract written in Rust
+- **Event Indexer**: High-performance indexing service for real-time event monitoring and querying
 
 ## Features
 
@@ -18,34 +22,255 @@ StellarEscrow is a decentralized escrow system that enables secure peer-to-peer 
 - **Dispute Resolution**: Arbitrators can release funds to buyer or seller
 - **Cancellation Support**: Sellers can cancel unfunded trades
 - **Admin Controls**: Platform fee management and fee withdrawal capabilities
+- **Event Indexing**: Real-time event monitoring, storage, and querying
+- **WebSocket Streaming**: Live event updates for connected clients
+- **REST API**: Efficient event querying and replay functionality
 
 ## Architecture
 
-### Core Components
+### Smart Contract (`contract/`)
 
-- **lib.rs**: Main contract implementation with all public functions
-- **types.rs**: Data structures (Trade, TradeStatus, DisputeResolution)
-- **storage.rs**: Persistent and instance storage management
-- **errors.rs**: Custom error types for contract operations
-- **events.rs**: Event emission functions for monitoring
-- **test.rs**: Comprehensive test suite with 20+ test cases
+**Core Components**
+- `lib.rs`: Main contract implementation with all public functions
+- `types.rs`: Data structures (Trade, TradeStatus, DisputeResolution)
+- `storage.rs`: Persistent and instance storage management
+- `errors.rs`: Custom error types for contract operations
+- `events.rs`: Event emission functions for monitoring
 
-### Storage Model
+### Event Indexer (`indexer/`)
 
-**Instance Storage**: Admin, USDC token, fee configuration, counters, accumulated fees
+**Core Components**
+- `main.rs`: Service entry point and server setup
+- `config.rs`: Configuration management
+- `database.rs`: PostgreSQL database operations
+- `event_monitor.rs`: Stellar network event monitoring
+- `handlers.rs`: REST API endpoint handlers
+- `websocket.rs`: WebSocket connection management
+- `models.rs`: Data structures and types
+- `error.rs`: Error handling
 
-**Persistent Storage**: Individual trades, arbitrator registrations
+## Quick Start
 
-### Fee Calculation
+### Prerequisites
 
-Fees are calculated in basis points (bps):
-- 100 bps = 1.0%
-- 250 bps = 2.5%
-- 500 bps = 5.0%
+- Rust 1.70+
+- PostgreSQL 13+
+- Soroban CLI (for contract deployment)
+- Stellar account with XLM for fees
 
-Formula: `fee = amount * fee_bps / 10000`
+### 1. Build the Contract
+
+```bash
+cd contract
+cargo build --target wasm32-unknown-unknown --release
+```
+
+### 2. Deploy the Contract
+
+```bash
+# Using Soroban CLI
+soroban contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/stellar_escrow_contract.wasm \
+  --source <your-secret-key> \
+  --network testnet
+```
+
+### 3. Setup the Indexer
+
+```bash
+cd indexer
+
+# Install sqlx CLI
+cargo install sqlx-cli
+
+# Setup database
+createdb stellar_escrow
+sqlx migrate run
+
+# Configure
+cp config.toml config.local.toml
+# Edit config.local.toml with your contract ID and database URL
+```
+
+### 4. Run the Indexer
+
+```bash
+cargo run -- --config config.local.toml
+```
 
 ## Contract Functions
+
+### Administrative Functions
+- `initialize(admin, usdc_token, fee_bps)` - One-time contract initialization
+- `register_arbitrator(arbitrator)` - Add arbitrator to approved list (admin only)
+- `remove_arbitrator_fn(arbitrator)` - Remove arbitrator from approved list (admin only)
+- `update_fee(fee_bps)` - Update platform fee percentage (admin only)
+- `withdraw_fees(to)` - Withdraw accumulated fees (admin only)
+
+### User Functions
+- `create_trade(seller, buyer, amount, arbitrator)` - Create new trade (seller auth required)
+- `fund_trade(trade_id)` - Buyer funds the escrow (buyer auth required)
+- `complete_trade(trade_id)` - Seller confirms delivery (seller auth required)
+- `confirm_receipt(trade_id)` - Buyer confirms receipt and releases funds (buyer auth required)
+- `raise_dispute(trade_id)` - Either party raises dispute (buyer/seller auth required)
+- `resolve_dispute(trade_id, resolution)` - Arbitrator resolves dispute (arbitrator auth required)
+- `cancel_trade(trade_id)` - Cancel unfunded trade (seller auth required)
+
+### Query Functions
+- `get_trade(trade_id)` - Retrieve trade details
+- `get_accumulated_fees()` - Check total platform fees collected
+- `is_arbitrator_registered(arbitrator)` - Verify arbitrator registration status
+- `get_platform_fee_bps()` - Get current fee percentage
+
+## Indexer API
+
+### REST Endpoints
+
+#### Health Check
+```
+GET /health
+```
+
+#### Get Events
+```
+GET /events?limit=50&event_type=trade_created&trade_id=123
+```
+
+#### Get Event by ID
+```
+GET /events/{uuid}
+```
+
+#### Get Events by Trade ID
+```
+GET /events/trade/{trade_id}
+```
+
+#### Replay Events
+```
+POST /events/replay
+{
+  "from_ledger": 123456,
+  "to_ledger": 123500
+}
+```
+
+### WebSocket Streaming
+
+Connect to `/ws` for real-time event updates:
+
+```javascript
+const ws = new WebSocket('ws://localhost:3000/ws');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('New event:', data);
+};
+```
+
+## Security Features
+
+- **Authorization Checks**: All state-changing operations require proper authorization
+- **Status Validation**: Prevents invalid state transitions
+- **Overflow Protection**: Safe math operations with overflow checks
+- **Arbitrator Verification**: Only registered arbitrators can resolve disputes
+- **Ownership Validation**: Only trade parties can perform specific actions
+
+## Testing
+
+### Contract Tests
+
+```bash
+cd contract
+cargo test
+```
+
+### Indexer Tests
+
+```bash
+cd indexer
+cargo test
+```
+
+The contract includes comprehensive tests covering:
+✅ Initialization and configuration
+✅ Arbitrator registration and removal
+✅ Fee updates and validation
+✅ Trade creation and funding
+✅ Trade completion flow
+✅ Dispute raising and resolution
+✅ Cancellation logic
+✅ Fee withdrawal by admin
+✅ Authorization enforcement
+✅ Error conditions
+✅ Event emission verification
+✅ Multiple trades handling
+✅ Fee calculation accuracy
+
+## Deployment
+
+### Contract Deployment
+
+1. Build optimized WASM:
+```bash
+cd contract
+cargo build --target wasm32-unknown-unknown --release
+```
+
+2. Deploy using Soroban CLI or your preferred deployment tool
+
+### Indexer Deployment
+
+1. Build release binary:
+```bash
+cd indexer
+cargo build --release
+```
+
+2. Configure production settings in `config.toml`
+3. Run migrations on production database
+4. Start the service
+
+## Development
+
+### Project Structure
+
+```
+StellarEscrow/
+├── contract/           # Soroban smart contract
+│   ├── src/
+│   │   ├── lib.rs      # Main contract logic
+│   │   ├── types.rs    # Data structures
+│   │   ├── storage.rs  # Storage operations
+│   │   ├── errors.rs   # Error types
+│   │   └── events.rs   # Event emission
+│   └── Cargo.toml
+├── indexer/            # Event indexing service
+│   ├── src/
+│   │   ├── main.rs     # Service entry point
+│   │   ├── config.rs   # Configuration
+│   │   ├── database.rs # DB operations
+│   │   ├── event_monitor.rs # Stellar monitoring
+│   │   ├── handlers.rs # HTTP handlers
+│   │   ├── websocket.rs # WS connections
+│   │   ├── models.rs   # Data models
+│   │   └── error.rs    # Error handling
+│   ├── migrations/     # DB migrations
+│   ├── config.toml     # Default config
+│   └── Cargo.toml
+└── Cargo.toml          # Workspace config
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
 
 ### Administrative Functions
 
