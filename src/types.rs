@@ -34,15 +34,11 @@ pub struct Trade {
     pub fee: u64,
     pub arbitrator: Option<Address>,
     pub status: TradeStatus,
-    /// Ledger sequence number when the trade was created
     pub created_at: u32,
-    /// Ledger sequence number of the last status update
     pub updated_at: u32,
-    /// Optional structured metadata (product info, shipping details, etc.)
     pub metadata: Option<TradeMetadata>,
 }
 
-/// A richer view of a trade used for history queries
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransactionRecord {
@@ -57,12 +53,9 @@ pub struct TransactionRecord {
     pub metadata: Option<TradeMetadata>,
 }
 
-/// Maximum byte length for a single metadata value string
 pub const METADATA_MAX_VALUE_LEN: u32 = 256;
-/// Maximum number of key-value pairs in metadata
 pub const METADATA_MAX_ENTRIES: u32 = 10;
 
-/// A single metadata key-value entry
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MetadataEntry {
@@ -70,7 +63,6 @@ pub struct MetadataEntry {
     pub value: String,
 }
 
-/// Structured metadata attached to a trade (e.g. product description, shipping info)
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TradeMetadata {
@@ -81,62 +73,42 @@ pub struct TradeMetadata {
 // Fee Tier System
 // ---------------------------------------------------------------------------
 
-/// Volume thresholds (in USDC micro-units) for automatic tier upgrades.
-/// Bronze: 0+, Silver: 10_000_000_000 (10k USDC), Gold: 100_000_000_000 (100k USDC)
 pub const TIER_SILVER_THRESHOLD: u64 = 10_000_000_000;
 pub const TIER_GOLD_THRESHOLD: u64 = 100_000_000_000;
 
-/// User membership tier — determines the fee rate applied to their trades.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserTier {
-    /// Default tier — uses the platform base fee
     Bronze,
-    /// Mid tier — reduced fee rate
     Silver,
-    /// Top tier — lowest fee rate
     Gold,
-    /// Manually assigned custom fee rate (overrides volume-based tier)
     Custom,
 }
 
-/// Per-user tier record stored on-chain.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserTierInfo {
-    /// Current tier
     pub tier: UserTier,
-    /// Cumulative completed trade volume (sum of trade amounts)
     pub total_volume: u64,
-    /// Custom fee in basis points — only used when tier == Custom
     pub custom_fee_bps: Option<u32>,
 }
 
-/// Tier configuration set by admin — defines fee bps per tier.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TierConfig {
-    /// Fee bps for Bronze (default: platform base fee)
     pub bronze_fee_bps: u32,
-    /// Fee bps for Silver
     pub silver_fee_bps: u32,
-    /// Fee bps for Gold
     pub gold_fee_bps: u32,
 }
 
-/// Filter options for history queries
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HistoryFilter {
-    /// Optional status filter
     pub status: Option<TradeStatus>,
-    /// Minimum ledger sequence (inclusive)
     pub from_ledger: Option<u32>,
-    /// Maximum ledger sequence (inclusive)
     pub to_ledger: Option<u32>,
 }
 
-/// Paginated history result
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HistoryPage {
@@ -150,55 +122,43 @@ pub struct HistoryPage {
 // Trade Templates
 // ---------------------------------------------------------------------------
 
-/// Maximum length of a template name string
 pub const TEMPLATE_NAME_MAX_LEN: u32 = 64;
-/// Maximum number of active versions retained per template
 pub const TEMPLATE_MAX_VERSIONS: u32 = 10;
 
-/// Predefined terms attached to a template
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TemplateTerms {
-    /// Human-readable description of the trade terms
     pub description: String,
-    /// Optional default arbitrator for trades from this template
     pub default_arbitrator: Option<Address>,
-    /// Optional fixed amount — if set, trades must use this amount
     pub fixed_amount: Option<u64>,
-    /// Optional metadata defaults applied to every trade from this template
     pub default_metadata: Option<TradeMetadata>,
 }
 
-/// A single versioned snapshot of a template
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TemplateVersion {
     pub version: u32,
     pub terms: TemplateTerms,
-    /// Ledger sequence when this version was created
     pub created_at: u32,
 }
 
-/// A reusable trade template owned by a seller
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TradeTemplate {
     pub id: u64,
     pub owner: Address,
     pub name: String,
-    /// Current (latest) version number
     pub current_version: u32,
-    /// All retained versions (newest last)
     pub versions: Vec<TemplateVersion>,
-    /// Whether the template is active and can be used to create trades
     pub active: bool,
     pub created_at: u32,
     pub updated_at: u32,
-// =============================================================================
-// User Management (Issue #64)
-// =============================================================================
+}
 
-/// Verification status of a user, set by admin
+// ---------------------------------------------------------------------------
+// User Management
+// ---------------------------------------------------------------------------
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerificationStatus {
@@ -208,21 +168,17 @@ pub enum VerificationStatus {
     Rejected,
 }
 
-/// On-chain user profile
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserProfile {
     pub address: Address,
-    /// SHA-256 hash of off-chain display name (stored as 32 bytes)
     pub username_hash: soroban_sdk::Bytes,
-    /// SHA-256 hash of off-chain contact info
     pub contact_hash: soroban_sdk::Bytes,
     pub verification: VerificationStatus,
     pub registered_at: u32,
     pub updated_at: u32,
 }
 
-/// Per-user preferences stored as a key→value map entry
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserPreference {
@@ -230,7 +186,6 @@ pub struct UserPreference {
     pub value: soroban_sdk::String,
 }
 
-/// Aggregated analytics for a user
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserAnalytics {
@@ -244,11 +199,10 @@ pub struct UserAnalytics {
     pub cancelled_trades: u32,
 }
 
-// =============================================================================
-// Admin Panel (Issue #35)
-// =============================================================================
+// ---------------------------------------------------------------------------
+// Admin Panel
+// ---------------------------------------------------------------------------
 
-/// Aggregated platform-wide analytics for the admin panel
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlatformAnalytics {
@@ -261,7 +215,6 @@ pub struct PlatformAnalytics {
     pub cancelled_trades: u64,
 }
 
-/// System configuration snapshot returned to admin
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SystemConfig {
@@ -271,11 +224,10 @@ pub struct SystemConfig {
     pub accumulated_fees: u64,
 }
 
-// =============================================================================
-// Trade Detail View (Issue #31)
-// =============================================================================
+// ---------------------------------------------------------------------------
+// Trade Detail View
+// ---------------------------------------------------------------------------
 
-/// A single entry in the trade status timeline
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelineEntry {
@@ -283,7 +235,6 @@ pub struct TimelineEntry {
     pub ledger: u32,
 }
 
-/// Context-sensitive actions available to a given viewer address
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TradeAction {
@@ -295,16 +246,91 @@ pub enum TradeAction {
     ResolveDispute,
 }
 
-/// Complete trade detail view returned by get_trade_detail
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TradeDetail {
-    /// Full trade data
     pub trade: Trade,
-    /// Ordered status timeline (Created → current status)
     pub timeline: Vec<TimelineEntry>,
-    /// Actions available to the viewer (empty if viewer is not a party)
     pub available_actions: Vec<TradeAction>,
-    /// Net payout to seller after fee deduction
     pub seller_payout: u64,
+}
+
+// ---------------------------------------------------------------------------
+// Analytics Charts & Graphs
+// ---------------------------------------------------------------------------
+
+/// A single data point for a time-series chart (ledger bucket → value).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChartPoint {
+    /// Ledger sequence representing the start of this bucket
+    pub ledger: u32,
+    /// Aggregated value for this bucket (volume, count, etc.)
+    pub value: u64,
+}
+
+/// Trade volume chart data — bucketed by ledger range.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VolumeChartData {
+    /// Ordered data points (ascending ledger)
+    pub points: Vec<ChartPoint>,
+    /// Total volume across all points
+    pub total_volume: u64,
+    /// Total number of trades across all points
+    pub total_trades: u64,
+}
+
+/// Success rate snapshot — completed vs total settled trades.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SuccessRateData {
+    pub completed: u64,
+    pub disputed: u64,
+    pub cancelled: u64,
+    /// Basis points (0–10000): completed / (completed + disputed + cancelled) * 10000
+    pub success_rate_bps: u32,
+}
+
+/// Per-status trade count breakdown for a status distribution chart.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StatusDistribution {
+    pub created: u64,
+    pub funded: u64,
+    pub completed: u64,
+    pub disputed: u64,
+    pub cancelled: u64,
+}
+
+/// Fee collection chart data — bucketed by ledger range.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeChartData {
+    pub points: Vec<ChartPoint>,
+    pub total_fees: u64,
+}
+
+/// Aggregated analytics snapshot for a single user — drives user stats charts.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UserStatsSnapshot {
+    pub address: Address,
+    pub total_trades: u32,
+    pub total_volume: u64,
+    pub success_rate_bps: u32,
+    pub trades_as_seller: u32,
+    pub trades_as_buyer: u32,
+}
+
+/// Filter for analytics queries — ledger range only (no PII).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnalyticsFilter {
+    /// Inclusive lower bound (ledger sequence). None = from genesis.
+    pub from_ledger: Option<u32>,
+    /// Inclusive upper bound (ledger sequence). None = current ledger.
+    pub to_ledger: Option<u32>,
+    /// Number of ledgers per bucket for time-series charts (0 = no bucketing).
+    pub bucket_size: u32,
 }
