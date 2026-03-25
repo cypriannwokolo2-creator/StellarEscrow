@@ -3,6 +3,8 @@
  * WCAG 2.1 AA Compliance Implementation
  */
 
+import { registerServiceWorker, initOfflineIndicator, promptInstall, isInstallable, subscribePush } from './pwa.js';
+
 (function() {
     'use strict';
 
@@ -1002,6 +1004,28 @@
         const contrastToggle = $('#contrast-toggle');
         if (contrastToggle) {
             contrastToggle.addEventListener('click', toggleHighContrast);
+        }
+
+        // Initialize PWA
+        const swReg = await registerServiceWorker();
+        initOfflineIndicator();
+
+        document.addEventListener('pwa:installable', () => {
+            const banner = $('#install-banner');
+            if (banner) banner.hidden = false;
+        });
+        $('#install-btn')?.addEventListener('click', async () => {
+            const accepted = await promptInstall();
+            if (accepted) $('#install-banner').hidden = true;
+        });
+        $('#install-dismiss')?.addEventListener('click', () => {
+            $('#install-banner').hidden = true;
+        });
+
+        if (swReg) {
+            document.addEventListener('pwa:push-subscribe', async () => {
+                await subscribePush(swReg);
+            });
         }
 
         // Fetch initial data
