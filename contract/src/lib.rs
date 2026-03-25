@@ -3,6 +3,7 @@
 mod errors;
 mod events;
 mod governance;
+mod oracle;
 mod privacy;
 mod queries;
 mod storage;
@@ -26,6 +27,7 @@ pub use types::{
     Trade, TradeMetadata, TradePrivacy, TradeStatus, TradeTemplate, UserTier, UserTierInfo,
 };
 pub use queries::{PageParams, SortDirection, TradeFilter, TradeSortField, TradeStats};
+pub use oracle::{OracleEntry, PriceData, PriceValidation};
 
 use storage::{
     get_accumulated_fees, get_admin, get_fee_bps, get_trade, get_usdc_token,
@@ -615,6 +617,70 @@ impl StellarEscrowContract {
     ) -> Result<queries::TradeStats, ContractError> {
         require_initialized(&env)?;
         queries::aggregate_trades(&env, filter)
+    }
+
+    // -------------------------------------------------------------------------
+    // Oracle Integration
+    // -------------------------------------------------------------------------
+
+    /// Register a price oracle contract for a `base`/`quote` asset pair (admin only).
+    /// `priority`: lower = queried first. Up to 5 oracles per pair.
+    pub fn register_oracle(
+        env: Env,
+        base: Address,
+        quote: Address,
+        oracle: Address,
+        priority: u32,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        get_admin(&env)?.require_auth();
+        oracle::register_oracle(&env, &base, &quote, oracle, priority)
+    }
+
+    /// Remove a price oracle for a `base`/`quote` pair (admin only).
+    pub fn remove_oracle(
+        env: Env,
+        base: Address,
+        quote: Address,
+        oracle: Address,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        get_admin(&env)?.require_auth();
+        oracle::remove_oracle(&env, &base, &quote, &oracle)
+    }
+
+    /// List all registered oracles for a `base`/`quote` pair.
+    pub fn get_oracles(
+        env: Env,
+        base: Address,
+        quote: Address,
+    ) -> soroban_sdk::Vec<oracle::OracleEntry> {
+        oracle::get_oracles(&env, &base, &quote)
+    }
+
+    /// Fetch the current price for `base`/`quote` from registered oracles.
+    /// Queries in priority order; returns first fresh (non-stale) response.
+    /// Returns `Err(OracleUnavailable)` if all sources fail or are stale.
+    pub fn get_oracle_price(
+        env: Env,
+        base: Address,
+        quote: Address,
+    ) -> Result<oracle::PriceData, ContractError> {
+        oracle::get_price(&env, &base, &quote)
+    }
+
+    /// Validate that `trade_amount` falls within `[min_usd, max_usd]` at the
+    /// current oracle price. Bounds are in oracle-scaled units (value × 10^decimals).
+    /// Returns `Err(OracleUnavailable)` on oracle failure — caller decides whether to block.
+    pub fn validate_trade_price(
+        env: Env,
+        base: Address,
+        quote: Address,
+        trade_amount: u64,
+        min_usd: i128,
+        max_usd: i128,
+    ) -> Result<oracle::PriceValidation, ContractError> {
+        oracle::validate_trade_price(&env, &base, &quote, trade_amount, min_usd, max_usd)
     }
 
     // -------------------------------------------------------------------------

@@ -67,4 +67,10 @@ pub enum ContractError {
     TradeNotInsured = 28,
     InsuranceAlreadyClaimed = 29,
     InsuranceClaimNotEligible = 30,
+    // Oracle errors (40–44)
+    OracleNotFound = 40,
+    OracleAlreadyRegistered = 41,
+    OracleListFull = 42,
+    OracleUnavailable = 43,
+    OraclePriceInvalid = 44,
 }

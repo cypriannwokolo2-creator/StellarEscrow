@@ -292,3 +292,31 @@ pub fn emit_insurance_purchased(env: &Env, trade_id: u64, provider: Address, pre
 pub fn emit_insurance_claimed(env: &Env, trade_id: u64, payout: u64, recipient: Address) {
     env.events().publish((cat_ins(), symbol_short!("ins_pay")), EvInsClaimed { v: EVENT_VERSION, trade_id, payout, recipient });
 }
+
+// ---------------------------------------------------------------------------
+// Oracle events
+// ---------------------------------------------------------------------------
+
+fn cat_oracle() -> Symbol { symbol_short!("oracle") }
+
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvOracleRegistered { pub v: u32, pub base: Address, pub quote: Address, pub oracle: Address, pub priority: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvOracleRemoved    { pub v: u32, pub base: Address, pub quote: Address, pub oracle: Address }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvOraclePriceFetched { pub v: u32, pub base: Address, pub quote: Address, pub price: i128, pub decimals: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvOracleUnavailable  { pub v: u32, pub base: Address, pub quote: Address }
+
+pub fn emit_oracle_registered(env: &Env, base: Address, quote: Address, oracle: Address, priority: u32) {
+    env.events().publish((cat_oracle(), symbol_short!("orc_reg")), EvOracleRegistered { v: EVENT_VERSION, base, quote, oracle, priority });
+}
+pub fn emit_oracle_removed(env: &Env, base: Address, quote: Address, oracle: Address) {
+    env.events().publish((cat_oracle(), symbol_short!("orc_rem")), EvOracleRemoved { v: EVENT_VERSION, base, quote, oracle });
+}
+pub fn emit_oracle_price_fetched(env: &Env, base: Address, quote: Address, price: i128, decimals: u32) {
+    env.events().publish((cat_oracle(), symbol_short!("orc_px")), EvOraclePriceFetched { v: EVENT_VERSION, base, quote, price, decimals });
+}
+pub fn emit_oracle_unavailable(env: &Env, base: Address, quote: Address) {
+    env.events().publish((cat_oracle(), symbol_short!("orc_err")), EvOracleUnavailable { v: EVENT_VERSION, base, quote });
+}
