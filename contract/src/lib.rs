@@ -4,6 +4,7 @@ mod errors;
 mod events;
 mod governance;
 mod privacy;
+mod queries;
 mod storage;
 mod subscription;
 mod templates;
@@ -24,6 +25,7 @@ pub use types::{
     Subscription, SubscriptionTier, TierConfig, TemplateTerms, TemplateVersion,
     Trade, TradeMetadata, TradePrivacy, TradeStatus, TradeTemplate, UserTier, UserTierInfo,
 };
+pub use queries::{PageParams, SortDirection, TradeFilter, TradeSortField, TradeStats};
 
 use storage::{
     get_accumulated_fees, get_admin, get_fee_bps, get_trade, get_usdc_token,
@@ -587,6 +589,32 @@ impl StellarEscrowContract {
     /// Get platform fee in basis points
     pub fn get_platform_fee_bps(env: Env) -> Result<u32, ContractError> {
         get_fee_bps(&env)
+    }
+
+    // -------------------------------------------------------------------------
+    // Advanced Query Functions
+    // -------------------------------------------------------------------------
+
+    /// Filter, sort, and paginate trades.
+    ///
+    /// - `filter`: optional criteria (status, participant, amount range, id range)
+    /// - `page`: pagination + sort options (offset, limit ≤ 100, sort_by, direction)
+    pub fn query_trades(
+        env: Env,
+        filter: queries::TradeFilter,
+        page: queries::PageParams,
+    ) -> Result<soroban_sdk::Vec<Trade>, ContractError> {
+        require_initialized(&env)?;
+        queries::query_trades(&env, filter, page)
+    }
+
+    /// Aggregate statistics (count, volume, fees, min/max amount) over filtered trades.
+    pub fn aggregate_trades(
+        env: Env,
+        filter: queries::TradeFilter,
+    ) -> Result<queries::TradeStats, ContractError> {
+        require_initialized(&env)?;
+        queries::aggregate_trades(&env, filter)
     }
 
     // -------------------------------------------------------------------------
