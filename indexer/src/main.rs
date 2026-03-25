@@ -158,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/search/discovery", get(discover_entities))
         .route("/search/suggestions", get(search_suggestions))
         .route("/search/history", get(search_history))
+        .route("/search/analytics", get(search_analytics))
         .route("/fraud/alerts", get(get_fraud_alerts))
         .route("/fraud/review", post(update_fraud_review))
         .route("/ws", get(ws_handler))

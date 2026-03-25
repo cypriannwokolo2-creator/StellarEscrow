@@ -55,7 +55,12 @@ pub async fn api_index() -> Json<serde_json::Value> {
             "audit_query":     "GET  /audit?actor=&category=&action=&outcome=&severity=&from=&to=&limit=&offset=",
             "audit_stats":     "GET  /audit/stats",
             "audit_purge":     "DELETE /audit/purge  {older_than_days?}"
-            "fraud_alerts":    "GET  /fraud/alerts",
+            "search":          "GET  /search?q=&limit=",
+            "search_trades":   "GET  /search/trades?q=&status=&seller=&buyer=&min_amount=&max_amount=&limit=&offset=",
+            "search_discovery":"GET  /search/discovery?q=&role=&limit=",
+            "search_suggestions":"GET /search/suggestions?q=&limit=",
+            "search_history":  "GET  /search/history?limit=",
+            "search_analytics":"GET  /search/analytics?from=&to=&search_type=",
             "fraud_review":    "POST /fraud/review  {trade_id, status, reviewer, notes}",
             "help":            "GET  /help"
         }
@@ -293,6 +298,14 @@ pub async fn search_history(
         .get_search_history(params.limit.unwrap_or(20))
         .await?;
     Ok(Json(rows))
+}
+
+pub async fn search_analytics(
+    Query(params): Query<crate::models::SearchAnalyticsQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<crate::models::SearchAnalyticsResponse>, AppError> {
+    let result = state.database.get_search_analytics(&params).await?;
+    Ok(Json(result))
 }
 
 pub async fn get_fraud_alerts(

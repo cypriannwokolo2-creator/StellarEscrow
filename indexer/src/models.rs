@@ -384,6 +384,37 @@ pub struct AuditBucket {
     pub count: i64,
 }
 
+// =============================================================================
+// Search Analytics Models
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct SearchAnalyticsRow {
+    pub date: chrono::NaiveDate,
+    pub search_type: String,
+    pub query_count: i64,
+    pub unique_terms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchAnalyticsQuery {
+    /// ISO date lower bound (inclusive), e.g. "2026-01-01"
+    pub from: Option<chrono::NaiveDate>,
+    /// ISO date upper bound (inclusive)
+    pub to: Option<chrono::NaiveDate>,
+    /// Filter to a specific search type (global / trades / discovery)
+    pub search_type: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchAnalyticsResponse {
+    pub rows: Vec<SearchAnalyticsRow>,
+    /// Top 10 most-searched terms across the requested window
+    pub top_terms: Vec<SearchSuggestion>,
+    /// Total queries in the window
+    pub total_queries: i64,
+}
+
 /// Request body for the retention purge endpoint.
 #[derive(Debug, Deserialize)]
 pub struct RetentionRequest {

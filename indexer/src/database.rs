@@ -247,7 +247,70 @@ impl Database {
         .bind(search_type)
         .execute(&self.pool)
         .await?;
+
+        // Upsert daily analytics bucket
+        sqlx::query(
+            r#"
+            INSERT INTO search_analytics (date, search_type, query_count, unique_terms, updated_at)
+            VALUES (CURRENT_DATE, $1, 1, 1, NOW())
+            ON CONFLICT (date, search_type) DO UPDATE
+                SET query_count  = search_analytics.query_count + 1,
+                    unique_terms = (
+                        SELECT COUNT(DISTINCT query_text)
+                        FROM search_history
+                        WHERE search_type = $1
+                          AND created_at::DATE = CURRENT_DATE
+                    ),
+                    updated_at = NOW()
+            "#,
+        )
+        .bind(search_type)
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
+    }
+
+    pub async fn get_search_analytics(
+        &self,
+        query: &crate::models::SearchAnalyticsQuery,
+    ) -> Result<crate::models::SearchAnalyticsResponse, AppError> {
+        use crate::models::{SearchAnalyticsResponse, SearchAnalyticsRow};
+
+        let mut conditions = vec!["1=1".to_string()];
+        let mut idx = 1usize;
+
+        if query.from.is_some() {
+            conditions.push(format!("date >= ${}", idx));
+            idx += 1;
+        }
+        if query.to.is_some() {
+            conditions.push(format!("date <= ${}", idx));
+            idx += 1;
+        }
+        if query.search_type.is_some() {
+            conditions.push(format!("search_type = ${}", idx));
+            idx += 1;
+        }
+        let _ = idx;
+
+        let sql = format!(
+            "SELECT date, search_type, query_count, unique_terms \
+             FROM search_analytics WHERE {} ORDER BY date DESC, search_type",
+            conditions.join(" AND ")
+        );
+
+        let mut qb = sqlx::query_as::<_, SearchAnalyticsRow>(&sql);
+        if let Some(v) = query.from   { qb = qb.bind(v); }
+        if let Some(v) = query.to     { qb = qb.bind(v); }
+        if let Some(ref v) = query.search_type { qb = qb.bind(v); }
+
+        let rows = qb.fetch_all(&self.pool).await?;
+        let total_queries: i64 = rows.iter().map(|r| r.query_count).sum();
+
+        let top_terms = self.get_search_suggestions("", 10).await?;
+
+        Ok(SearchAnalyticsResponse { rows, top_terms, total_queries })
     }
 
     pub async fn search_trades(&self, query: &TradeSearchQuery) -> Result<Vec<TradeSearchResult>, AppError> {
