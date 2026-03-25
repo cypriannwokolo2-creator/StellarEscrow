@@ -3,6 +3,10 @@
  * WCAG 2.1 AA Compliance Implementation
  */
 
+import { setLocale, getLocale, formatCurrency, formatDate } from './i18n.js';
+import { registerServiceWorker, initOfflineIndicator, promptInstall, isInstallable, subscribePush } from './pwa.js';
+import { observeWebVitals, initLazyRoutes, prefetchOnIdle, cachedFetch, invalidateCache } from './performance.js';
+
 (function() {
     'use strict';
 
@@ -104,8 +108,7 @@
     // ============================================
     async function fetchHealth() {
         try {
-            const response = await fetch(`${CONFIG.apiBaseUrl}/health`);
-            const data = await response.json();
+            const data = await cachedFetch(`${CONFIG.apiBaseUrl}/health`, {}, 60_000);
             updateHealthStatus(data);
             return data;
         } catch (error) {
@@ -124,9 +127,7 @@
         queryParams.set('offset', (state.currentPage - 1) * state.pageSize);
 
         try {
-            const response = await fetch(`${CONFIG.apiBaseUrl}/events?${queryParams}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
+            const data = await cachedFetch(`${CONFIG.apiBaseUrl}/events?${queryParams}`, {}, 15_000);
             state.events = data;
             state.totalEvents = data.length;
             renderEventsTable(data);
@@ -964,6 +965,11 @@
     async function init() {
         console.log('Initializing StellarEscrow Dashboard...');
 
+        // Performance monitoring
+        observeWebVitals();
+        initLazyRoutes();
+        prefetchOnIdle();
+
         // Load preferences
         loadHighContrastPreference();
         loadSearchHistory();
@@ -1002,6 +1008,40 @@
         const contrastToggle = $('#contrast-toggle');
         if (contrastToggle) {
             contrastToggle.addEventListener('click', toggleHighContrast);
+        }
+
+        // Initialize language switcher
+        const langSelect = $('#lang-select');
+        if (langSelect) {
+            langSelect.value = getLocale();
+            langSelect.addEventListener('change', (e) => {
+                setLocale(e.target.value);
+                announce(document.documentElement.lang === 'ar' ? 'تم تغيير اللغة' : 'Language changed');
+            });
+        }
+
+        // Initialize PWA
+        const swReg = await registerServiceWorker();
+        initOfflineIndicator();
+
+        // Install banner
+        document.addEventListener('pwa:installable', () => {
+            const banner = $('#install-banner');
+            if (banner) banner.hidden = false;
+        });
+        $('#install-btn')?.addEventListener('click', async () => {
+            const accepted = await promptInstall();
+            if (accepted) $('#install-banner').hidden = true;
+        });
+        $('#install-dismiss')?.addEventListener('click', () => {
+            $('#install-banner').hidden = true;
+        });
+
+        // Push notifications (subscribe after SW ready)
+        if (swReg) {
+            document.addEventListener('pwa:push-subscribe', async () => {
+                await subscribePush(swReg);
+            });
         }
 
         // Fetch initial data

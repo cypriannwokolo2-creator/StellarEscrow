@@ -1,3 +1,5 @@
+import { LocaleState } from './slices/localeSlice';
+
 // Trade state types
 export interface Trade {
   id: string;
@@ -50,4 +52,5 @@ export interface RootState {
   trades: TradesState;
   events: EventsState;
   ui: UIState;
+  locale: LocaleState;
 }

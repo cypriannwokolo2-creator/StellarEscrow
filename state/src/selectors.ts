@@ -34,3 +34,8 @@ export const selectSelectedTradeId = (state: RootState): string | null =>
 
 export const selectFilters = (state: RootState) => state.ui.filters;
 export const selectPagination = (state: RootState) => state.ui.pagination;
+
+// Locale selectors
+export const selectLocale = (state: RootState) => state.locale.locale;
+export const selectIsRTL = (state: RootState) => state.locale.isRTL;
+export const selectLocaleCurrency = (state: RootState) => state.locale.currency;

@@ -3,5 +3,6 @@ export { escrowApi, useGetTradesQuery, useGetTradeQuery, useCreateTradeMutation,
 export * from './slices/tradesSlice';
 export * from './slices/eventsSlice';
 export * from './slices/uiSlice';
+export * from './slices/localeSlice';
 export * from './selectors';
 export * from './types';

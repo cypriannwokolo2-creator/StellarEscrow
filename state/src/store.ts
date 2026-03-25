@@ -5,12 +5,13 @@ import logger from 'redux-logger';
 import tradesReducer from './slices/tradesSlice';
 import eventsReducer from './slices/eventsSlice';
 import uiReducer from './slices/uiSlice';
+import localeReducer from './slices/localeSlice';
 import { escrowApi } from './api/escrowApi';
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['trades', 'ui'],
+  whitelist: ['trades', 'ui', 'locale'],
   blacklist: ['events', 'escrowApi'],
 };
 
@@ -22,6 +23,7 @@ const persistedReducer = persistReducer(persistConfig, (state, action) => {
     trades: tradesReducer(state?.trades, action),
     events: eventsReducer(state?.events, action),
     ui: uiReducer(state?.ui, action),
+    locale: localeReducer(state?.locale, action),
   };
 });
 
@@ -30,6 +32,7 @@ export const store = configureStore({
     trades: tradesReducer,
     events: eventsReducer,
     ui: uiReducer,
+    locale: localeReducer,
     [escrowApi.reducerPath]: escrowApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>

@@ -5,7 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="StellarEscrow - Accessible decentralized escrow dashboard for peer-to-peer USDC trades on Stellar blockchain">
     <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="StellarEscrow">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <title>StellarEscrow Dashboard</title>
+    <!-- Critical resource hints -->
+    <link rel="modulepreload" href="/app.js">
+    <link rel="modulepreload" href="/i18n.js">
+    <link rel="modulepreload" href="/pwa.js">
+    <link rel="modulepreload" href="/performance.js">
+    <link rel="preload" href="/styles.css" as="style">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +25,7 @@
 </head>
 <body>
     <!-- Skip to main content link for screen readers -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-content" class="skip-link" data-i18n="a11y.skipToMain">Skip to main content</a>
     
     <!-- High contrast mode toggle -->
     <button 
@@ -22,13 +34,26 @@
         type="button"
         aria-pressed="false"
         aria-label="Toggle high contrast mode"
+        data-i18n-aria="a11y.highContrast"
     >
         <span class="toggle-icon" aria-hidden="true">◐</span>
-        <span class="toggle-text">High Contrast</span>
+        <span class="toggle-text" data-i18n="a11y.highContrast">High Contrast</span>
     </button>
 
     <!-- Live region for announcements -->
     <div id="live-region" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Offline indicator -->
+    <div id="offline-indicator" class="offline-indicator" role="status" aria-live="polite" hidden>
+        <span aria-hidden="true">⚡</span> You're offline — showing cached data
+    </div>
+
+    <!-- PWA install banner -->
+    <div id="install-banner" class="install-banner" hidden>
+        <span>Install StellarEscrow for a faster, app-like experience.</span>
+        <button id="install-btn" type="button" class="btn btn-sm">Install</button>
+        <button id="install-dismiss" type="button" class="btn btn-sm btn-ghost" aria-label="Dismiss">✕</button>
+    </div>
 
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
@@ -50,14 +75,25 @@
                     <span class="hamburger" aria-hidden="true"></span>
                 </button>
                 <ul id="main-menu" class="nav-menu" role="menubar">
-                    <li role="none"><a href="#dashboard" role="menuitem" class="nav-link active" aria-current="page">Dashboard</a></li>
-                    <li role="none"><a href="#events" role="menuitem" class="nav-link">View Events</a></li>
-                    <li role="none"><a href="#search" role="menuitem" class="nav-link">Search</a></li>
-                    <li role="none"><a href="#disputes" role="menuitem" class="nav-link">Disputes</a></li>
-                    <li role="none"><a href="#arbitrator" role="menuitem" class="nav-link">Arbitrator</a></li>
-                    <li role="none"><a href="#help" role="menuitem" class="nav-link">Help Center</a></li>
-                    <li role="none"><a href="#api-docs" role="menuitem" class="nav-link">API Documentation</a></li>
+                    <li role="none"><a href="#dashboard" role="menuitem" class="nav-link active" aria-current="page" data-i18n="nav.dashboard">Dashboard</a></li>
+                    <li role="none"><a href="#events" role="menuitem" class="nav-link" data-i18n="nav.events">View Events</a></li>
+                    <li role="none"><a href="#search" role="menuitem" class="nav-link" data-i18n="nav.search">Search</a></li>
+                    <li role="none"><a href="#disputes" role="menuitem" class="nav-link" data-i18n="nav.disputes">Disputes</a></li>
+                    <li role="none"><a href="#arbitrator" role="menuitem" class="nav-link" data-i18n="nav.arbitrator">Arbitrator</a></li>
+                    <li role="none"><a href="#help" role="menuitem" class="nav-link" data-i18n="nav.help">Help Center</a></li>
+                    <li role="none"><a href="#api-docs" role="menuitem" class="nav-link" data-i18n="nav.apiDocs">API Documentation</a></li>
                 </ul>
+
+                <!-- Language Switcher -->
+                <div class="lang-switcher">
+                    <label for="lang-select" class="visually-hidden" data-i18n="common.language">Language</label>
+                    <select id="lang-select" aria-label="Select language">
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="es">Español</option>
+                        <option value="ar">العربية</option>
+                    </select>
+                </div>
                 
                 <!-- Notifications -->
                 <div class="notification-controls">
@@ -89,11 +125,12 @@
                         class="btn btn-wallet"
                         type="button"
                         aria-label="Connect Stellar wallet"
+                        data-i18n-aria="wallet.connect"
                         aria-expanded="false"
                         aria-controls="wallet-menu"
                     >
                         <span class="wallet-icon" aria-hidden="true">◆</span>
-                        <span class="wallet-text">Connect Wallet</span>
+                        <span class="wallet-text" data-i18n="wallet.connect">Connect Wallet</span>
                     </button>
                     
                     <!-- Wallet Menu -->
@@ -403,7 +440,7 @@
         </section>
 
         <!-- Disputes Section -->
-        <section id="disputes" aria-labelledby="disputes-heading" class="section">
+        <section id="disputes" aria-labelledby="disputes-heading" class="section" data-route="disputes">
             <div class="container">
                 <h2 id="disputes-heading" class="section-title">Dispute Management</h2>
                 
@@ -514,7 +551,7 @@
         </div>
 
         <!-- Arbitrator Dashboard Section -->
-        <section id="arbitrator" aria-labelledby="arbitrator-heading" class="section">
+        <section id="arbitrator" aria-labelledby="arbitrator-heading" class="section" data-route="arbitrator">
             <div class="container">
                 <h2 id="arbitrator-heading" class="section-title">Arbitrator Dashboard</h2>
                 
@@ -942,9 +979,6 @@
 
     <script src="compat.js"></script>
     <script src="wallet.js"></script>
-    <script src="disputes.js"></script>
-    <script src="arbitrator.js"></script>
-    <script src="notifications.js"></script>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
