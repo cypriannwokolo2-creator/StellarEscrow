@@ -71,4 +71,10 @@ pub enum ContractError {
     TradeNotInsured = 28,
     InsuranceAlreadyClaimed = 29,
     InsuranceClaimNotEligible = 30,
+    NotMultiSigTrade = 31,
+    VotingExpired = 32,
+    NoConsensus = 34,
+    VotingNotExpired = 35,
+    ConsensusReached = 36,
+    InvalidMultiSigConfig = 37,
 }

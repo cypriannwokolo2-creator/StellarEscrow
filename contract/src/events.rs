@@ -46,6 +46,16 @@ pub fn emit_dispute_resolved(
         .publish((symbol_short!("resolved"),), (trade_id, resolution, recipient));
 }
 
+pub fn emit_vote_cast(
+    env: &Env,
+    trade_id: u64,
+    arbitrator: Address,
+    resolution: DisputeResolution,
+) {
+    env.events()
+        .publish((symbol_short!("vote_cast"),), (trade_id, arbitrator, resolution));
+}
+
 pub fn emit_partial_resolved(
     env: &Env,
     trade_id: u64,
