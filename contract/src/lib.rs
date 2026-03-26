@@ -1,6 +1,7 @@
 #![no_std]
 
 mod analytics;
+mod amm;
 mod errors;
 mod events;
 mod governance;
@@ -1492,6 +1493,100 @@ impl StellarEscrowContract {
     /// Return performance metrics for a specific arbitrator.
     pub fn get_arbitrator_analytics(env: Env, arbitrator: Address) -> analytics::ArbitratorMetrics {
         analytics::get_arb_metrics(&env, &arbitrator)
+    // AMM — Automated Market Making
+    // -----------------------------------------------------------------------
+
+    /// Create a new constant-product liquidity pool for a token pair.
+    /// `fee_bps` is the swap fee in basis points (e.g. 30 = 0.30 %).
+    /// Returns the new pool id.
+    pub fn amm_create_pool(
+        env: Env,
+        token_a: Address,
+        token_b: Address,
+        fee_bps: u32,
+    ) -> Result<u64, ContractError> {
+        require_initialized(&env)?;
+        amm::create_pool(&env, token_a, token_b, fee_bps)
+    }
+
+    /// Add liquidity to a pool.
+    /// `min_shares` enforces slippage protection on the minted LP shares.
+    /// Returns the number of LP shares minted.
+    pub fn amm_add_liquidity(
+        env: Env,
+        pool_id: u64,
+        provider: Address,
+        amount_a: u64,
+        amount_b: u64,
+        min_shares: u64,
+    ) -> Result<u64, ContractError> {
+        require_initialized(&env)?;
+        amm::add_liquidity(&env, pool_id, &provider, amount_a, amount_b, min_shares)
+    }
+
+    /// Remove liquidity from a pool.
+    /// `min_a` / `min_b` enforce slippage protection on the returned amounts.
+    /// Returns `(amount_a, amount_b)` transferred back to the provider.
+    pub fn amm_remove_liquidity(
+        env: Env,
+        pool_id: u64,
+        provider: Address,
+        shares: u64,
+        min_a: u64,
+        min_b: u64,
+    ) -> Result<(u64, u64), ContractError> {
+        require_initialized(&env)?;
+        amm::remove_liquidity(&env, pool_id, &provider, shares, min_a, min_b)
+    }
+
+    /// Swap `amount_in` of `token_in` for the other token in the pool.
+    /// `min_out` enforces slippage protection — reverts if output < min_out.
+    pub fn amm_swap(
+        env: Env,
+        pool_id: u64,
+        caller: Address,
+        token_in: Address,
+        amount_in: u64,
+        min_out: u64,
+    ) -> Result<amm::SwapResult, ContractError> {
+        require_initialized(&env)?;
+        amm::swap(&env, pool_id, &caller, &token_in, amount_in, min_out)
+    }
+
+    /// Simulate a swap without executing it. Returns expected output and price impact.
+    pub fn amm_quote_swap(
+        env: Env,
+        pool_id: u64,
+        token_in: Address,
+        amount_in: u64,
+    ) -> Result<amm::SwapResult, ContractError> {
+        amm::quote_swap(&env, pool_id, &token_in, amount_in)
+    }
+
+    /// Get the current spot price of token_a in terms of token_b (scaled by 1e7).
+    pub fn amm_spot_price(env: Env, pool_id: u64) -> Result<u64, ContractError> {
+        amm::spot_price(&env, pool_id)
+    }
+
+    /// Claim accumulated swap-fee yield for a liquidity provider.
+    /// Returns `(claimed_a, claimed_b)`.
+    pub fn amm_claim_yield(
+        env: Env,
+        pool_id: u64,
+        provider: Address,
+    ) -> Result<(u64, u64), ContractError> {
+        require_initialized(&env)?;
+        amm::claim_yield(&env, pool_id, &provider)
+    }
+
+    /// Get pool state.
+    pub fn amm_get_pool(env: Env, pool_id: u64) -> Result<amm::Pool, ContractError> {
+        amm::get_pool(&env, pool_id)
+    }
+
+    /// Get LP position for a provider in a pool.
+    pub fn amm_get_lp_position(env: Env, pool_id: u64, provider: Address) -> amm::LpPosition {
+        amm::get_lp_position(&env, pool_id, &provider)
     }
 }
 
