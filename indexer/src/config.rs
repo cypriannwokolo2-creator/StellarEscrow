@@ -2,8 +2,14 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::IpAddr;
 
+// ---------------------------------------------------------------------------
+// Config structs
+// ---------------------------------------------------------------------------
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub meta: MetaConfig,
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub stellar: StellarConfig,
@@ -13,19 +19,45 @@ pub struct Config {
     pub notification: NotificationConfig,
 }
 
+/// Metadata section — version tracking for the config itself.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MetaConfig {
+    #[serde(default = "default_config_version")]
+    pub version: String,
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub environment: String,
+}
+
+fn default_config_version() -> String { "1.0.0".to_string() }
+fn default_schema_version() -> u32 { 1 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub port: u16,
+    #[serde(default = "default_host")]
+    pub host: String,
 }
+
+fn default_host() -> String { "0.0.0.0".to_string() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
     pub url: String,
+    #[serde(default = "default_max_connections")]
+    pub max_connections: u32,
+    #[serde(default = "default_connect_timeout")]
+    pub connect_timeout_seconds: u64,
 }
+
+fn default_max_connections() -> u32 { 10 }
+fn default_connect_timeout() -> u64 { 30 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StellarConfig {
-    pub network: String, // "testnet" or "mainnet"
+    /// "testnet" or "mainnet"
+    pub network: String,
     pub contract_id: String,
     pub horizon_url: String,
     pub start_ledger: Option<u32>,
@@ -34,71 +66,202 @@ pub struct StellarConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
-    /// Requests per minute for unauthenticated / default IPs.
     pub default_rpm: u64,
-    /// Requests per minute for elevated-tier IPs.
     pub elevated_rpm: u64,
-    /// Requests per minute for admin-tier IPs (effectively unlimited in practice).
     pub admin_rpm: u64,
-    /// IPs that bypass rate limiting entirely.
     #[serde(default)]
     pub whitelist: Vec<IpAddr>,
-    /// IPs that are always blocked.
     #[serde(default)]
     pub blacklist: Vec<IpAddr>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
-    /// Shared API keys for regular clients.
     #[serde(default)]
     pub api_keys: Vec<String>,
-    /// Admin API keys for privileged routes.
     #[serde(default)]
     pub admin_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
-    /// Base directory for uploaded files
     pub base_dir: String,
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size_mb: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+fn default_max_file_size() -> u64 { 10 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NotificationConfig {
-    // Email (SendGrid-compatible)
+    #[serde(default)]
     pub email_api_url: String,
+    #[serde(default)]
     pub email_api_key: String,
+    #[serde(default)]
     pub email_from: String,
-    // SMS (Twilio-compatible)
+    #[serde(default)]
     pub sms_api_url: String,
+    #[serde(default)]
     pub sms_account_sid: String,
+    #[serde(default)]
     pub sms_auth_token: String,
+    #[serde(default)]
     pub sms_from: String,
-    // Push (FCM v1)
+    #[serde(default)]
     pub push_api_url: String,
+    #[serde(default)]
     pub push_project_id: String,
+    #[serde(default)]
     pub push_server_key: String,
 }
 
+// ---------------------------------------------------------------------------
+// Validation errors
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct ConfigValidationError(pub Vec<String>);
+
+impl std::fmt::Display for ConfigValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Config validation failed:\n  - {}", self.0.join("\n  - "))
+    }
+}
+
+impl std::error::Error for ConfigValidationError {}
+
+// ---------------------------------------------------------------------------
+// Loading & validation
+// ---------------------------------------------------------------------------
+
 impl Config {
+    /// Load config from a TOML file, then apply environment variable overrides.
+    ///
+    /// Env var pattern: `STELLAR_ESCROW__<SECTION>__<KEY>=value`
+    /// Examples:
+    ///   STELLAR_ESCROW__DATABASE__URL=postgres://...
+    ///   STELLAR_ESCROW__SERVER__PORT=8080
+    ///   STELLAR_ESCROW__STELLAR__NETWORK=mainnet
     pub fn load(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let contents = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&contents)?;
+        let mut config: Config = toml::from_str(&contents)?;
+        config.apply_env_overrides();
+        config.validate()?;
         Ok(config)
+    }
+
+    /// Apply `STELLAR_ESCROW__<SECTION>__<KEY>` environment variable overrides.
+    fn apply_env_overrides(&mut self) {
+        const PREFIX: &str = "STELLAR_ESCROW__";
+
+        for (key, val) in std::env::vars() {
+            if !key.starts_with(PREFIX) {
+                continue;
+            }
+            let rest = &key[PREFIX.len()..];
+            let parts: Vec<&str> = rest.splitn(2, "__").collect();
+            if parts.len() != 2 {
+                continue;
+            }
+            let (section, field) = (parts[0].to_lowercase(), parts[1].to_lowercase());
+
+            match (section.as_str(), field.as_str()) {
+                ("server", "port") => {
+                    if let Ok(v) = val.parse() { self.server.port = v; }
+                }
+                ("server", "host") => self.server.host = val,
+                ("database", "url") => self.database.url = val,
+                ("database", "max_connections") => {
+                    if let Ok(v) = val.parse() { self.database.max_connections = v; }
+                }
+                ("stellar", "network") => self.stellar.network = val,
+                ("stellar", "contract_id") => self.stellar.contract_id = val,
+                ("stellar", "horizon_url") => self.stellar.horizon_url = val,
+                ("stellar", "poll_interval_seconds") => {
+                    if let Ok(v) = val.parse() { self.stellar.poll_interval_seconds = v; }
+                }
+                ("rate_limit", "default_rpm") => {
+                    if let Ok(v) = val.parse() { self.rate_limit.default_rpm = v; }
+                }
+                ("rate_limit", "elevated_rpm") => {
+                    if let Ok(v) = val.parse() { self.rate_limit.elevated_rpm = v; }
+                }
+                ("rate_limit", "admin_rpm") => {
+                    if let Ok(v) = val.parse() { self.rate_limit.admin_rpm = v; }
+                }
+                ("storage", "base_dir") => self.storage.base_dir = val,
+                ("notification", "email_api_key") => self.notification.email_api_key = val,
+                ("notification", "sms_account_sid") => self.notification.sms_account_sid = val,
+                ("notification", "sms_auth_token") => self.notification.sms_auth_token = val,
+                ("notification", "push_server_key") => self.notification.push_server_key = val,
+                ("notification", "push_project_id") => self.notification.push_project_id = val,
+                _ => {} // Unknown keys are silently ignored
+            }
+        }
+    }
+
+    /// Validate required fields and semantic constraints.
+    pub fn validate(&self) -> Result<(), ConfigValidationError> {
+        let mut errors = Vec::new();
+
+        if self.database.url.is_empty() {
+            errors.push("database.url must not be empty".to_string());
+        }
+        if self.stellar.horizon_url.is_empty() {
+            errors.push("stellar.horizon_url must not be empty".to_string());
+        }
+        if !["testnet", "mainnet"].contains(&self.stellar.network.as_str()) {
+            errors.push(format!(
+                "stellar.network must be 'testnet' or 'mainnet', got '{}'",
+                self.stellar.network
+            ));
+        }
+        if self.stellar.poll_interval_seconds == 0 {
+            errors.push("stellar.poll_interval_seconds must be > 0".to_string());
+        }
+        if self.server.port == 0 {
+            errors.push("server.port must be > 0".to_string());
+        }
+
+        // Production-specific checks
+        if self.meta.environment == "production" {
+            if self.stellar.network != "mainnet" {
+                errors.push("production environment requires stellar.network = 'mainnet'".to_string());
+            }
+            if self.stellar.contract_id.is_empty() {
+                errors.push("stellar.contract_id must be set in production".to_string());
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ConfigValidationError(errors))
+        }
     }
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server: ServerConfig { port: 3000 },
+            meta: MetaConfig {
+                version: "1.0.0".to_string(),
+                schema_version: 1,
+                environment: "development".to_string(),
+            },
+            server: ServerConfig {
+                port: 3000,
+                host: "0.0.0.0".to_string(),
+            },
             database: DatabaseConfig {
-                url: "postgres://user:password@localhost/stellar_escrow".to_string(),
+                url: "postgres://indexer:password@localhost/stellar_escrow".to_string(),
+                max_connections: 10,
+                connect_timeout_seconds: 30,
             },
             stellar: StellarConfig {
                 network: "testnet".to_string(),
-                contract_id: "".to_string(),
+                contract_id: String::new(),
                 horizon_url: "https://horizon-testnet.stellar.org".to_string(),
                 start_ledger: None,
                 poll_interval_seconds: 5,
@@ -110,25 +273,11 @@ impl Default for Config {
                 whitelist: vec![],
                 blacklist: vec![],
             },
-            auth: AuthConfig {
-                api_keys: vec!["demo-key-123".to_string()],
-                admin_keys: vec!["admin-key-123".to_string()],
-            },
             storage: StorageConfig {
                 base_dir: "./uploads".to_string(),
+                max_file_size_mb: 10,
             },
-            notification: NotificationConfig {
-                email_api_url: "https://api.sendgrid.com".to_string(),
-                email_api_key: String::new(),
-                email_from: "noreply@stellarescrow.io".to_string(),
-                sms_api_url: "https://api.twilio.com".to_string(),
-                sms_account_sid: String::new(),
-                sms_auth_token: String::new(),
-                sms_from: String::new(),
-                push_api_url: "https://fcm.googleapis.com".to_string(),
-                push_project_id: String::new(),
-                push_server_key: String::new(),
-            },
+            notification: NotificationConfig::default(),
         }
     }
 }

@@ -1,6 +1,7 @@
 import { ApiClient } from './client';
 import { TradesApi, EventsApi, BlockchainApi } from './resources';
 import { ApiClientConfig } from './types';
+import { loadConfig, ApiConfig } from './config';
 
 export class EscrowApi {
   private client: ApiClient;
@@ -38,14 +39,17 @@ export class EscrowApi {
 }
 
 export const createApi = (baseURL: string, mockEnabled = false): EscrowApi => {
+  const cfg = loadConfig({ baseUrl: baseURL, mockEnabled });
   return new EscrowApi({
-    baseURL,
-    timeout: 30000,
-    mockEnabled,
+    baseURL: cfg.baseUrl,
+    timeout: cfg.timeoutMs,
+    mockEnabled: cfg.mockEnabled,
     retryConfig: {
-      maxRetries: 3,
-      delayMs: 1000,
-      backoffMultiplier: 2,
+      maxRetries: cfg.retryMax,
+      delayMs: cfg.retryDelayMs,
+      backoffMultiplier: cfg.retryBackoffMultiplier,
     },
   });
 };
+
+export type { ApiConfig };

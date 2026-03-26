@@ -74,9 +74,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
 
-    // Load configuration
+    // Load configuration (TOML file + STELLAR_ESCROW__* env var overrides)
     let config = Config::load(&args.config)?;
-    info!("Loaded configuration from {}", args.config);
+    info!(
+        "Loaded configuration from {} | env={} version={} schema_v={}",
+        args.config,
+        config.meta.environment,
+        config.meta.version,
+        config.meta.schema_version,
+    );
 
     // Initialize database
     let db_pool = PgPool::connect(&config.database.url).await?;
