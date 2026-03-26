@@ -27,5 +27,34 @@ services:
       - postgres
     command: ["./indexer", "--config", "config.toml"]
 
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl.nginx.conf:/etc/nginx/conf.d/ssl.conf:ro
+      - ./cdn-headers.nginx.conf:/etc/nginx/conf.d/cdn-headers.conf:ro
+      - certbot_webroot:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - indexer
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certbot_webroot:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    # Initial certificate issuance — run once manually:
+    # docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d stellarescrow.app
+    entrypoint: >
+      sh -c "trap exit TERM;
+             while :; do
+               certbot renew --webroot -w /var/www/certbot --quiet;
+               sleep 12h & wait $${!};
+             done"
+
 volumes:
   postgres_data:
+  certbot_webroot:
+  letsencrypt:

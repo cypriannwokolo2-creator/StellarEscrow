@@ -11,6 +11,7 @@ export const setupCSP = (): void => {
     frame-ancestors 'none';
     base-uri 'self';
     form-action 'self';
+    upgrade-insecure-requests;
   `.replace(/\s+/g, ' ');
   document.head.appendChild(meta);
 };
@@ -36,6 +37,12 @@ export const setupSecurityHeaders = (): void => {
   permissions.httpEquiv = 'Permissions-Policy';
   permissions.content = 'geolocation=(), microphone=(), camera=()';
   document.head.appendChild(permissions);
+
+  // upgrade-insecure-requests (HSTS equivalent at meta level)
+  const upgradeInsecure = document.createElement('meta');
+  upgradeInsecure.httpEquiv = 'Content-Security-Policy';
+  upgradeInsecure.content = 'upgrade-insecure-requests';
+  document.head.appendChild(upgradeInsecure);
 };
 
 export const setupXSSProtection = (): void => {
