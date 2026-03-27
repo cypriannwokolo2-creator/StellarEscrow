@@ -66,6 +66,7 @@ module "api" {
   name_prefix           = local.name_prefix
   environment           = var.environment
   vpc_id                = module.networking.vpc_id
+  public_subnet_ids     = module.networking.public_subnet_ids
   private_subnet_ids    = module.networking.private_subnet_ids
   api_image             = var.api_image
   desired_count         = local.cfg.api_desired_count
