@@ -7,7 +7,14 @@ This project uses a three-tier testing strategy:
 | Layer | Tool | Location | Purpose |
 |-------|------|----------|---------|
 | Unit | Jest + ts-jest | `*/src/**/*.test.ts(x)` | Functions, hooks, slices |
-| Integration | Jest + React Testing Library | `components/src/**/*.test.tsx` | Component behaviour |
+| Integration | Jest + React Testing Library / MSW | `components/src/**/*.test.tsx`, `api/src/**/*.integration.test.ts` | Component and API behaviour |
+| Contract | Jest + runtime validators | `api/src/**/*.contract.test.ts` | Endpoint method/path/shape guarantees |
+| Load | Jest + concurrent request harness | `api/src/**/*.load.test.ts` | API concurrency smoke coverage |
+| Stress | Jest + performance harness | `api/src/**/*.stress.test.ts` | Burst traffic, retry pressure, and degraded upstream behaviour |
+| Benchmark | Jest + performance harness | `api/src/**/*.benchmark.test.ts` | Endpoint and workflow latency baselines |
+| Scalability | Jest + performance harness | `api/src/**/*.scalability.test.ts` | Throughput and latency trends across concurrency levels |
+| Monitoring | Jest + performance harness | `api/src/**/*.monitoring.test.ts` | Threshold alerts, error-rate visibility, and per-operation telemetry |
+| Security | Jest + scenario harness | `security/src/security.assessment.test.ts` | Penetration tests, vulnerability scans, compliance, monitoring |
 | E2E | Cypress | `components/cypress/e2e/` | Full user flows |
 
 ## Running Tests
@@ -18,6 +25,21 @@ npm test
 
 # With coverage reports
 npm run test:coverage
+
+# API package suites
+npm run test:integration --workspace=api
+npm run test:contract --workspace=api
+npm run test:load --workspace=api
+npm run test:stress --workspace=api
+npm run test:benchmark --workspace=api
+npm run test:scalability --workspace=api
+npm run test:monitoring --workspace=api
+npm run test:performance --workspace=api
+npm run test:docs --workspace=api
+
+# Security assessment suite
+npm run test:security
+npm run test:security --workspace=security
 
 # E2E tests (requires app running on localhost:3000)
 npm run test:e2e
@@ -90,6 +112,7 @@ it('creates a new trade', () => {
 - Form validation and submission
 - Redux slice reducers and selectors
 - Security utilities (sanitization, validation)
+- Security attack scenarios, compliance controls, vulnerability baselines, and monitoring alerts
 
 **Don't test:**
 - Third-party library internals
@@ -133,3 +156,105 @@ Full testing documentation is in `docs/testing/`:
 | `TEST_PLAN_TEMPLATE.md` | Template for feature-level test plans |
 | `TEST_CASE_DOCUMENTATION.md` | Canonical test case catalog with AC mapping |
 | `TESTING_GUIDELINES.md` | Practical guidelines for writing tests |
+## Regression Testing Suite
+
+Located in `testing/regression/`. Catches breaking changes automatically on every PR and nightly.
+
+### Suites
+
+| Suite | File | What it tests |
+|-------|------|---------------|
+| API Contracts | `api-contracts.regression.ts` | All public endpoints — shape, status codes, required fields |
+| Validation Schema | `validation-schema.regression.ts` | Trade form validation rules (pure functions, no network) |
+| Compliance Rules | `compliance-rules.regression.ts` | KYC/AML workflow state machine and report aggregation |
+| Alert Rules | `alert-rules.regression.ts` | Monitoring alert thresholds and evaluation logic |
+
+### Running
+
+```bash
+# Run all regression suites
+npm run test:regression
+
+# Generate HTML + JSON report
+npm run test:regression:report
+
+# Analyze trends (flaky tests, pass rate trend)
+npm run test:regression:analyze
+
+# Detect regressions vs saved baseline
+cd testing/regression && node scripts/detect-changes.js
+```
+
+### Change Detection
+
+On first run, `detect-changes.js` saves a baseline. On subsequent runs it diffs against it and exits non-zero if any previously-passing test now fails. The baseline is stored in `testing/regression/reports/baseline.json`.
+
+### CI
+
+The `regression.yml` workflow runs on every push/PR:
+- `unit-regression` job: validation, compliance, alert rule suites (no server needed)
+- `api-regression` job: API contract suite (spins up indexer + postgres)
+- Posts a pass/fail summary as a PR comment
+
+---
+
+## UAT Framework
+
+Located in `testing/uat/`. Stakeholder-facing acceptance testing tied to numbered Acceptance Criteria.
+
+### Scenarios
+
+| Scenario | File | Acceptance Criteria |
+|----------|------|---------------------|
+| Trade Lifecycle | `trade-lifecycle.uat.ts` | AC-1 through AC-4 |
+| Compliance UX | `compliance-ux.uat.ts` | AC-5 through AC-8 |
+| Monitoring UX | `monitoring-ux.uat.ts` | AC-9 through AC-12 |
+
+### Running
+
+```bash
+# Run all UAT scenarios
+npm run test:uat
+
+# Generate stakeholder HTML report (with sign-off table)
+npm run test:uat:report
+
+# Full automated pipeline (run + report + feedback + webhook)
+npm run test:uat:automate
+
+# With specific environment and Slack webhook
+cd testing/uat && node scripts/run-automated-uat.js --env staging --webhook https://hooks.slack.com/...
+```
+
+### Feedback Collection
+
+Stakeholders submit feedback via `testing/uat/reports/feedback-input.json`:
+
+```json
+{
+  "stakeholder": "Product Owner",
+  "name": "[name]",
+  "overall_decision": "accept",
+  "items": [
+    { "ac": "AC-1", "decision": "accept", "notes": "Works as expected" }
+  ],
+  "general_notes": "Ready for production."
+}
+```
+
+Then run: `cd testing/uat && node scripts/collect-feedback.js`
+
+Feedback is appended to `feedback-log.json` and aggregated into `feedback-summary.json`.
+
+### Reports
+
+| File | Description |
+|------|-------------|
+| `uat-report.html` | Stakeholder HTML report with sign-off table |
+| `uat-summary.json` | Machine-readable summary per AC |
+| `feedback-log.json` | All stakeholder feedback entries |
+| `feedback-summary.json` | Aggregated feedback by AC |
+
+### CI
+
+The `uat.yml` workflow runs on push to main/develop and supports manual dispatch with environment selection. Reports are retained for 90 days as artifacts.

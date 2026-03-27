@@ -22,7 +22,65 @@ pub struct Config {
     pub cache: CacheConfig,
     pub gateway: GatewayConfig,
     pub integration: IntegrationConfig,
+    #[serde(default)]
+    pub compliance: ComplianceConfig,
+    #[serde(default)]
+    pub monitoring: MonitoringConfig,
+    #[serde(default)]
+    pub analytics: AnalyticsConfig,
+    #[serde(default)]
+    pub backup: BackupConfig,
 }
+
+// ---------------------------------------------------------------------------
+// Compliance config (inlined to avoid circular module deps)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ComplianceConfig {
+    #[serde(default)]
+    pub kyc_provider_url: String,
+    #[serde(default)]
+    pub kyc_api_key: String,
+    #[serde(default)]
+    pub aml_provider_url: String,
+    #[serde(default)]
+    pub aml_api_key: String,
+    #[serde(default = "default_kyc_level")]
+    pub required_kyc_level: u8,
+    #[serde(default = "default_aml_threshold")]
+    pub aml_risk_threshold: u8,
+    #[serde(default)]
+    pub blocked_jurisdictions: Vec<String>,
+    #[serde(default)]
+    pub reporting_webhook_url: String,
+}
+
+fn default_kyc_level() -> u8 { 1 }
+fn default_aml_threshold() -> u8 { 70 }
+
+// ---------------------------------------------------------------------------
+// Monitoring config (inlined to avoid circular module deps)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MonitoringConfig {
+    #[serde(default = "default_metrics_port")]
+    pub metrics_port: u16,
+    #[serde(default)]
+    pub alert_webhook_url: String,
+    #[serde(default)]
+    pub grafana_url: String,
+    #[serde(default)]
+    pub log_aggregation_url: String,
+    #[serde(default)]
+    pub incident_webhook_url: String,
+    #[serde(default = "default_eval_interval")]
+    pub alert_eval_interval_secs: u64,
+}
+
+fn default_metrics_port() -> u16 { 9090 }
+fn default_eval_interval() -> u64 { 30 }
 
 /// Metadata section — version tracking for the config itself.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -228,6 +286,63 @@ pub struct IntegrationConfig {
     #[serde(default)]
     pub connectors: Vec<ConnectorConfig>,
 }
+
+// ---------------------------------------------------------------------------
+// Analytics config
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AnalyticsConfig {
+    /// Retain analytics events for this many days (0 = forever)
+    #[serde(default = "default_analytics_retention")]
+    pub retention_days: u32,
+    /// Export max rows per request
+    #[serde(default = "default_export_limit")]
+    pub export_limit: u64,
+}
+
+fn default_analytics_retention() -> u32 { 90 }
+fn default_export_limit() -> u64 { 10_000 }
+
+// ---------------------------------------------------------------------------
+// Backup config
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupConfig {
+    #[serde(default)]
+    pub database_url: String,
+    #[serde(default)]
+    pub script_path: Option<String>,
+    #[serde(default)]
+    pub backup_dir: Option<String>,
+    #[serde(default)]
+    pub s3_bucket: Option<String>,
+    #[serde(default = "default_retention_days")]
+    pub retention_days: u32,
+    /// How often to run scheduled backups (hours, 0 = disabled)
+    #[serde(default = "default_backup_interval")]
+    pub interval_hours: u64,
+    #[serde(default)]
+    pub alert_webhook: Option<String>,
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            database_url: String::new(),
+            script_path: None,
+            backup_dir: None,
+            s3_bucket: None,
+            retention_days: 30,
+            interval_hours: 24,
+            alert_webhook: None,
+        }
+    }
+}
+
+fn default_retention_days() -> u32 { 30 }
+fn default_backup_interval() -> u64 { 24 }
 
 impl Config {
     /// Load config from a TOML file, then apply environment variable overrides.
