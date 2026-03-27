@@ -22,6 +22,9 @@
     "test:regression:analyze": "npm run analyze --workspace=testing/regression",
     "test:uat": "npm run test:ci --workspace=testing/uat",
     "test:uat:report": "npm run report --workspace=testing/uat",
+    "test:uat:automate": "npm run automate --workspace=testing/uat",
+    "test:a11y": "npm run test:ci --workspace=testing/accessibility",
+    "test:a11y:report": "npm run report --workspace=testing/accessibility"
     "test:uat:automate": "npm run automate --workspace=testing/uat"
   },
   "workspaces": [
@@ -31,6 +34,8 @@
     "state",
     "security",
     "testing/regression",
+    "testing/uat",
+    "testing/accessibility"
     "testing/uat"
     "tests"
   ]

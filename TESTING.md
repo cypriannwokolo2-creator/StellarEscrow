@@ -129,6 +129,33 @@ it('creates a new trade', () => {
 
 ---
 
+## Accessibility Testing
+
+Located in `testing/accessibility/`. Automated axe-core tests + manual procedures.
+
+```bash
+# Run automated a11y tests
+npm run test:a11y
+
+# Generate HTML report
+cd testing/accessibility && node scripts/generate-a11y-report.js
+```
+
+See `testing/accessibility/MANUAL_TESTING_PROCEDURES.md` for screen reader and keyboard testing procedures.
+See `testing/accessibility/WCAG_CHECKLIST.md` for the full WCAG 2.1 AA compliance checklist.
+
+---
+
+## Testing Documentation
+
+Full testing documentation is in `docs/testing/`:
+
+| Document | Purpose |
+|----------|---------|
+| `TEST_STRATEGY.md` | Overall testing philosophy, pyramid, quality gates |
+| `TEST_PLAN_TEMPLATE.md` | Template for feature-level test plans |
+| `TEST_CASE_DOCUMENTATION.md` | Canonical test case catalog with AC mapping |
+| `TESTING_GUIDELINES.md` | Practical guidelines for writing tests |
 ## Regression Testing Suite
 
 Located in `testing/regression/`. Catches breaking changes automatically on every PR and nightly.
