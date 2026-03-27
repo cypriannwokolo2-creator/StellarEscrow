@@ -51,14 +51,13 @@ module "load_balancer" {
   enable_deletion_protection  = local.cfg.enable_deletion_protection
   certificate_arn             = var.certificate_arn
   alarm_sns_arn               = var.alarm_sns_arn
-  ecs_cluster_name            = module.api.ecs_cluster_name
-  ecs_service_name            = module.api.ecs_service_name
+  ecs_cluster_name            = "${local.name_prefix}-cluster"
+  ecs_service_name            = "${local.name_prefix}-api"
   autoscaling_min_capacity    = local.cfg.autoscaling_min
   autoscaling_max_capacity    = local.cfg.autoscaling_max
   scale_out_cpu_threshold     = 70
   scale_in_cpu_threshold      = 30
   scale_out_request_threshold = 1000
-  depends_on                  = [module.api]
 }
 
 module "api" {
