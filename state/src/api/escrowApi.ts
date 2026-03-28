@@ -1,9 +1,9 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi } from '@reduxjs/toolkit/query/react'
 import { Trade, Event } from '../types';
 
 export const escrowApi = createApi({
   reducerPath: 'escrowApi',
-  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+baseQuery: createBaseQuery(),
   tagTypes: ['Trade', 'Event'],
   endpoints: (builder) => ({
     // Trades
