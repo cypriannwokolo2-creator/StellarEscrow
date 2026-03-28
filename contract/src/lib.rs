@@ -8,6 +8,7 @@ mod governance;
 mod oracle;
 mod privacy;
 mod queries;
+mod social;
 mod storage;
 mod subscription;
 mod templates;

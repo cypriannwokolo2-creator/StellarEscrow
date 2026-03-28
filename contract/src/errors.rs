@@ -93,4 +93,7 @@ pub enum ContractError {
     NoUpgradeInProgress = 63,
     /// Rollback window has passed; state cannot be reverted automatically.
     RollbackWindowExpired = 64,
+    // Social feature errors (70-74)
+    CannotFollowSelf = 70,
+    NotFollowing = 71,
 }
