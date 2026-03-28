@@ -21,6 +21,7 @@ fn cat_sub()   -> Symbol { symbol_short!("sub") }
 fn cat_gov()   -> Symbol { symbol_short!("gov") }
 fn cat_sys()   -> Symbol { symbol_short!("sys") }
 fn cat_ins()   -> Symbol { symbol_short!("ins") }
+fn cat_brg()   -> Symbol { symbol_short!("brg") }
 
 // ---------------------------------------------------------------------------
 // Structured event payloads
@@ -97,6 +98,26 @@ pub struct EvVoteCast         { pub v: u32, pub proposal_id: u64, pub voter: Add
 pub struct EvProposalExecuted { pub v: u32, pub proposal_id: u64 }
 #[contracttype] #[derive(Clone, Debug)]
 pub struct EvDelegated        { pub v: u32, pub delegator: Address, pub delegatee: Address }
+
+// Bridge events
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeProviderRegistered { pub v: u32, pub provider: String, pub oracle: Address }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeProviderDeactivated { pub v: u32, pub provider: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeTradeCreated { pub v: u32, pub trade_id: u64, pub source_chain: String, pub source_tx_hash: String, pub bridge_provider: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationReceived { pub v: u32, pub trade_id: u64, pub attestation_id: String, pub status: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationConfirmed { pub v: u32, pub trade_id: u64, pub confirmations: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationFailed { pub v: u32, pub trade_id: u64, pub error_code: u32, pub retry_count: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeTradeRolledBack { pub v: u32, pub trade_id: u64, pub reason: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgePaused { pub v: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeResumed { pub v: u32 }
 
 #[contracttype] #[derive(Clone, Debug)]
 pub struct EvPaused           { pub v: u32, pub admin: Address }
