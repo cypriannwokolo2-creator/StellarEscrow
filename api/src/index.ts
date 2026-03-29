@@ -109,6 +109,23 @@ export type {
   RetryConfig,
 } from './types';
 export type { ApiConfig };
+export {
+  RateLimitService,
+  DEFAULT_RATE_TIERS,
+  createRateLimitInterceptor,
+  getDefaultRateLimitService,
+  resetDefaultRateLimitService,
+} from './rate-limit';
+export type {
+  RateTier,
+  RateTierConfig,
+  RateLimitEntry,
+  RateLimitStatus,
+  RateLimitNotification,
+  RateLimitNotificationHandler,
+  RateLimitMonitorSnapshot,
+  RateLimitServiceOptions,
+} from './rate-limit';
 export type {
   OperationPerformanceSummary,
   PerformanceAlert,
