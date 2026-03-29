@@ -46,6 +46,7 @@ pub enum TradeStatus {
     Disputed,
     Cancelled,
     AwaitingBridge, // cross-chain: waiting for bridge oracle confirmation
+    BridgeFailed,   // cross-chain: bridge attestation failed
 }
 
 #[contracttype]

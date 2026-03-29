@@ -2,6 +2,7 @@
 
 mod analytics;
 mod amm;
+mod bridge;
 mod errors;
 mod events;
 mod governance;
@@ -34,6 +35,7 @@ pub use types::{
 };
 pub use queries::{PageParams, SortDirection, TradeFilter, TradeSortField, TradeStats};
 pub use oracle::{OracleEntry, PriceData, PriceValidation};
+pub use bridge::{BridgeProvider, CrossChainTrade, BridgeAttestation, BridgeValidation};
 pub use upgrade::{RollbackSnapshot, UpgradeProposal};
 pub use proxy::*;
 
