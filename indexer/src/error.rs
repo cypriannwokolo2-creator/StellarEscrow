@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("Event not found")]
     EventNotFound,
 
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     #[error("Internal server error")]
     InternalServerError,
 }
@@ -39,6 +42,7 @@ impl IntoResponse for AppError {
             AppError::HttpClient(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Network error"),
             AppError::InvalidEventData(_) => (StatusCode::BAD_REQUEST, "Invalid event data"),
             AppError::EventNotFound => (StatusCode::NOT_FOUND, "Event not found"),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "Not found"),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 

@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::models::{
     DiscoveryQuery, EventQuery, GlobalSearchQuery, GlobalSearchResponse, HistoryQuery, ReplayRequest,
-    SuggestionQuery, TradeSearchQuery, WebSocketMessage,
+    SuggestionQuery, TradeDetailQuery, TradeSearchQuery, WebSocketMessage,
 };
 use crate::websocket::WebSocketManager;
 use crate::{database::Database, models::Event};
@@ -192,6 +192,17 @@ pub async fn search_history(
         .get_search_history(params.limit.unwrap_or(20))
         .await?;
     Ok(Json(rows))
+}
+
+pub async fn get_trade_detail(
+    Path(trade_id): Path<i64>,
+    Query(_params): Query<TradeDetailQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<crate::models::TradeDetailResponse>, AppError> {
+    match state.database.get_trade_detail(trade_id).await? {
+        Some(detail) => Ok(Json(detail)),
+        None => Err(AppError::NotFound(format!("Trade {} not found", trade_id))),
+    }
 }
 
 #[derive(Clone)]

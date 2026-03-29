@@ -1120,3 +1120,219 @@ footer {
         text-align: center;
     }
 }
+
+/* ============================================
+   Trade Detail View (Issue #31)
+   ============================================ */
+
+.trade-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 768px) {
+    .trade-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.card-section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Trade Info Card */
+.trade-info-card,
+.trade-actions-card,
+.trade-timeline-card,
+.trade-history-card,
+.trade-metadata-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.trade-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.trade-info-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: var(--space-md);
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.trade-info-row:last-child {
+    border-bottom: none;
+}
+
+.trade-info-row dt {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    align-self: center;
+}
+
+.trade-info-row dd {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    word-break: break-all;
+    margin: 0;
+}
+
+.address-cell {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: var(--font-size-sm);
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.status-badge.created    { background: #3b82f620; color: #3b82f6; }
+.status-badge.funded     { background: #f59e0b20; color: var(--color-warning); }
+.status-badge.completed  { background: #22c55e20; color: var(--color-success); }
+.status-badge.confirmed  { background: #22c55e30; color: var(--color-success); }
+.status-badge.disputed   { background: #ef444420; color: var(--color-error); }
+.status-badge.cancelled  { background: #6b728020; color: var(--color-text-muted); }
+.status-badge.resolved   { background: #8b5cf620; color: #8b5cf6; }
+
+/* Actions */
+.trade-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+}
+
+.trade-action-btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-base);
+}
+
+.trade-action-btn.action-fund       { border-color: #3b82f6; color: #3b82f6; }
+.trade-action-btn.action-complete   { border-color: var(--color-success); color: var(--color-success); }
+.trade-action-btn.action-confirm    { border-color: var(--color-success); color: var(--color-success); }
+.trade-action-btn.action-dispute    { border-color: var(--color-error); color: var(--color-error); }
+.trade-action-btn.action-cancel     { border-color: var(--color-text-muted); color: var(--color-text-muted); }
+.trade-action-btn.action-resolve    { border-color: #8b5cf6; color: #8b5cf6; }
+
+.trade-action-btn:hover:not(:disabled) {
+    background: var(--color-bg-tertiary);
+}
+
+/* Share & Export */
+.share-export-title {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-sm);
+}
+
+.share-export-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+/* Timeline */
+.trade-timeline {
+    list-style: none;
+    position: relative;
+    padding-left: var(--space-xl);
+}
+
+.trade-timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--color-border);
+}
+
+.timeline-item {
+    position: relative;
+    padding: var(--space-sm) 0 var(--space-md);
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: calc(-1 * var(--space-xl) + 4px);
+    top: 8px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-bg-card);
+    border: 2px solid var(--color-border);
+}
+
+.timeline-item.active::before {
+    background: var(--color-accent-primary);
+    border-color: var(--color-accent-primary);
+}
+
+.timeline-item.completed::before {
+    background: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.timeline-item.disputed::before {
+    background: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.timeline-item.cancelled::before {
+    background: var(--color-text-muted);
+    border-color: var(--color-text-muted);
+}
+
+.timeline-status {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    text-transform: capitalize;
+}
+
+.timeline-meta {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-xs);
+}
+
+.timeline-hash {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    word-break: break-all;
+}
+
+/* Empty / loading state for trade detail */
+.trade-detail-empty {
+    text-align: center;
+    padding: var(--space-2xl);
+}

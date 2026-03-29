@@ -783,6 +783,325 @@
     }
 
     // ============================================
+    // Trade Detail View (Issue #31)
+    // ============================================
+
+    const STATUS_LABELS = {
+        trade_created:   'Created',
+        trade_funded:    'Funded',
+        trade_completed: 'Completed',
+        trade_confirmed: 'Confirmed',
+        trade_disputed:  'Disputed',
+        trade_cancelled: 'Cancelled',
+        dispute_resolved:'Resolved',
+    };
+
+    const STATUS_CLASS = {
+        trade_created:   'created',
+        trade_funded:    'funded',
+        trade_completed: 'completed',
+        trade_confirmed: 'confirmed',
+        trade_disputed:  'disputed',
+        trade_cancelled: 'cancelled',
+        dispute_resolved:'resolved',
+    };
+
+    const ACTION_LABELS = {
+        Fund:           { label: 'Fund Trade',        cls: 'action-fund' },
+        Complete:       { label: 'Mark Complete',     cls: 'action-complete' },
+        ConfirmReceipt: { label: 'Confirm Receipt',   cls: 'action-confirm' },
+        RaiseDispute:   { label: 'Raise Dispute',     cls: 'action-dispute' },
+        Cancel:         { label: 'Cancel Trade',      cls: 'action-cancel' },
+        ResolveDispute: { label: 'Resolve Dispute',   cls: 'action-resolve' },
+    };
+
+    async function fetchTradeDetail(tradeId) {
+        try {
+            const response = await fetch(`${CONFIG.apiBaseUrl}/trades/${encodeURIComponent(tradeId)}`);
+            if (!response.ok) {
+                if (response.status === 404) throw new Error(`Trade #${tradeId} not found`);
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to fetch trade detail:', error);
+            throw error;
+        }
+    }
+
+    function formatAmount(stroops) {
+        if (stroops == null) return '—';
+        return `${(stroops / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 7 })} USDC`;
+    }
+
+    function truncateAddress(addr) {
+        if (!addr || addr.length < 12) return addr || '—';
+        return `${addr.slice(0, 6)}…${addr.slice(-6)}`;
+    }
+
+    function renderTradeDetail(data) {
+        const panel = $('#trade-detail-panel');
+        const empty = $('#trade-detail-empty');
+        if (!panel || !empty) return;
+
+        // Show panel, hide empty state
+        panel.hidden = false;
+        empty.hidden = true;
+
+        // Basic info
+        $('#td-trade-id').textContent = data.trade_id;
+
+        const statusBadge = $('#td-status').querySelector('.status-badge') || document.createElement('span');
+        statusBadge.className = `status-badge ${STATUS_CLASS[data.status] || ''}`;
+        statusBadge.textContent = STATUS_LABELS[data.status] || data.status;
+        $('#td-status').innerHTML = '';
+        $('#td-status').appendChild(statusBadge);
+
+        $('#td-amount').textContent = formatAmount(data.amount);
+        $('#td-fee').textContent = data.fee != null ? formatAmount(data.fee) : '—';
+        $('#td-seller-payout').textContent = data.seller_payout != null ? formatAmount(data.seller_payout) : '—';
+
+        const sellerEl = $('#td-seller');
+        sellerEl.textContent = truncateAddress(data.seller);
+        sellerEl.title = data.seller || '';
+
+        const buyerEl = $('#td-buyer');
+        buyerEl.textContent = truncateAddress(data.buyer);
+        buyerEl.title = data.buyer || '';
+
+        const arbRow = $('#td-arbitrator-row');
+        if (data.arbitrator) {
+            arbRow.hidden = false;
+            const arbEl = $('#td-arbitrator');
+            arbEl.textContent = truncateAddress(data.arbitrator);
+            arbEl.title = data.arbitrator;
+        } else {
+            arbRow.hidden = true;
+        }
+
+        $('#td-created-at').textContent = data.created_at ? formatTimestamp(data.created_at) : '—';
+        $('#td-updated-at').textContent = data.updated_at ? formatTimestamp(data.updated_at) : '—';
+
+        // Metadata
+        const metaCard = $('#trade-metadata-card');
+        const metaList = $('#trade-metadata-list');
+        if (data.metadata && typeof data.metadata === 'object' && Object.keys(data.metadata).length > 0) {
+            metaCard.hidden = false;
+            metaList.innerHTML = Object.entries(data.metadata).map(([k, v]) => `
+                <div class="trade-info-row">
+                    <dt>${escapeHtml(k)}</dt>
+                    <dd>${escapeHtml(String(v))}</dd>
+                </div>
+            `).join('');
+        } else {
+            metaCard.hidden = true;
+        }
+
+        // Timeline
+        renderTimeline(data.timeline || [], data.status);
+
+        // Transaction history
+        renderTxHistory(data.transaction_history || []);
+
+        // Actions (derived from status since viewer context isn't available in indexer)
+        renderTradeActions(data);
+
+        // Wire up share/export buttons
+        const copyBtn = $('#copy-trade-link-btn');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                const url = `${window.location.origin}${window.location.pathname}#trade-detail?id=${data.trade_id}`;
+                navigator.clipboard.writeText(url).then(() => {
+                    showToast('Trade link copied to clipboard', 'success');
+                    announce('Trade link copied to clipboard');
+                }).catch(() => showToast('Failed to copy link', 'error'));
+            };
+        }
+
+        const csvBtn = $('#export-trade-csv-btn');
+        if (csvBtn) {
+            csvBtn.onclick = () => exportTradeCSV(data);
+        }
+
+        const jsonBtn = $('#export-trade-json-btn');
+        if (jsonBtn) {
+            jsonBtn.onclick = () => exportTradeJSON(data);
+        }
+
+        announce(`Trade #${data.trade_id} loaded. Status: ${STATUS_LABELS[data.status] || data.status}`);
+    }
+
+    function renderTimeline(timeline, currentStatus) {
+        const list = $('#trade-timeline');
+        if (!list) return;
+
+        if (timeline.length === 0) {
+            list.innerHTML = '<li class="empty-state">No timeline data available</li>';
+            return;
+        }
+
+        list.innerHTML = timeline.map((entry, i) => {
+            const isLast = i === timeline.length - 1;
+            const cls = isLast ? (STATUS_CLASS[entry.status] || 'active') : 'completed';
+            const label = STATUS_LABELS[entry.status] || entry.status;
+            const ts = entry.timestamp ? formatTimestamp(entry.timestamp) : '';
+            const hash = entry.transaction_hash
+                ? `<div class="timeline-hash" title="${escapeHtml(entry.transaction_hash)}">Tx: ${escapeHtml(entry.transaction_hash.slice(0, 16))}…</div>`
+                : '';
+            return `
+                <li class="timeline-item ${cls}" aria-label="${escapeHtml(label)} at ledger ${entry.ledger}">
+                    <div class="timeline-status">${escapeHtml(label)}</div>
+                    <div class="timeline-meta">Ledger ${entry.ledger}${ts ? ` · ${ts}` : ''}</div>
+                    ${hash}
+                </li>
+            `;
+        }).join('');
+    }
+
+    function renderTxHistory(events) {
+        const tbody = $('#tx-history-body');
+        if (!tbody) return;
+
+        if (events.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No transactions</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = events.map(e => `
+            <tr tabindex="0">
+                <td>${e.ledger}</td>
+                <td><span class="event-type">${escapeHtml(e.event_type)}</span></td>
+                <td>${e.timestamp ? formatTimestamp(e.timestamp) : '—'}</td>
+                <td class="address-cell" title="${escapeHtml(e.transaction_hash || '')}">${
+                    e.transaction_hash ? escapeHtml(e.transaction_hash.slice(0, 16)) + '…' : '—'
+                }</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderTradeActions(data) {
+        const container = $('#trade-actions-list');
+        if (!container) return;
+
+        // Derive available actions from status (viewer-agnostic display)
+        const actionMap = {
+            trade_created:   ['Fund', 'Cancel'],
+            trade_funded:    ['Complete', 'RaiseDispute'],
+            trade_completed: ['ConfirmReceipt', 'RaiseDispute'],
+            trade_disputed:  ['ResolveDispute'],
+            trade_confirmed: [],
+            trade_cancelled: [],
+            dispute_resolved:[],
+        };
+
+        const actions = actionMap[data.status] || [];
+        if (actions.length === 0) {
+            container.innerHTML = '<p class="empty-state">No actions available for this trade status</p>';
+            return;
+        }
+
+        container.innerHTML = actions.map(action => {
+            const { label, cls } = ACTION_LABELS[action] || { label: action, cls: '' };
+            return `
+                <button
+                    type="button"
+                    class="btn btn-secondary trade-action-btn ${cls}"
+                    data-action="${escapeHtml(action)}"
+                    aria-label="${escapeHtml(label)} for trade #${data.trade_id}"
+                >
+                    ${escapeHtml(label)}
+                </button>
+            `;
+        }).join('');
+
+        // Action click handler — shows informational toast (actual execution requires wallet)
+        container.querySelectorAll('.trade-action-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                showToast(`Action "${ACTION_LABELS[action]?.label || action}" requires wallet connection`, 'info');
+                announce(`${ACTION_LABELS[action]?.label || action} action selected`);
+            });
+        });
+    }
+
+    function exportTradeCSV(data) {
+        const rows = [
+            ['trade_id', 'seller', 'buyer', 'amount', 'fee', 'seller_payout', 'status', 'created_at', 'updated_at'],
+            [
+                data.trade_id,
+                data.seller,
+                data.buyer,
+                data.amount,
+                data.fee ?? '',
+                data.seller_payout ?? '',
+                data.status,
+                data.created_at ?? '',
+                data.updated_at ?? '',
+            ],
+        ];
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        downloadFile(`trade_${data.trade_id}.csv`, csv, 'text/csv');
+        announce(`Trade #${data.trade_id} exported as CSV`);
+    }
+
+    function exportTradeJSON(data) {
+        const json = JSON.stringify(data, null, 2);
+        downloadFile(`trade_${data.trade_id}.json`, json, 'application/json');
+        announce(`Trade #${data.trade_id} exported as JSON`);
+    }
+
+    function downloadFile(filename, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function initTradeDetailForm() {
+        const form = $('#trade-lookup-form');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = $('#trade-detail-id');
+            const tradeId = input?.value?.trim();
+            if (!tradeId) return;
+
+            const empty = $('#trade-detail-empty');
+            const panel = $('#trade-detail-panel');
+            if (empty) { empty.hidden = false; empty.querySelector('p').textContent = 'Loading…'; }
+            if (panel) panel.hidden = true;
+
+            try {
+                const data = await fetchTradeDetail(tradeId);
+                renderTradeDetail(data);
+            } catch (err) {
+                if (panel) panel.hidden = true;
+                if (empty) {
+                    empty.hidden = false;
+                    empty.querySelector('p').textContent = err.message || 'Failed to load trade';
+                }
+                showToast(err.message || 'Failed to load trade', 'error');
+                announce(err.message || 'Failed to load trade', 'assertive');
+            }
+        });
+
+        // Support deep-link: #trade-detail?id=123
+        const hash = window.location.hash;
+        const match = hash.match(/[?&]id=(\d+)/);
+        if (match) {
+            const input = $('#trade-detail-id');
+            if (input) {
+                input.value = match[1];
+                form.dispatchEvent(new Event('submit'));
+            }
+        }
+    }
+
+    // ============================================
     // Initialization
     // ============================================
     async function init() {
@@ -797,6 +1116,7 @@
         initHelpNav();
         initKeyboardNavigation();
         initForms();
+        initTradeDetailForm();
         initSmoothScroll();
         initFocusManagement();
         checkReducedMotion();

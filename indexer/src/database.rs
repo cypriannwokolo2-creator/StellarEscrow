@@ -312,6 +312,79 @@ impl Database {
         Ok(rows)
     }
 
+    pub async fn get_trade_detail(&self, trade_id: i64) -> Result<Option<crate::models::TradeDetailResponse>, AppError> {
+        use crate::models::{TradeDetailResponse, TradeTimelineEntry};
+
+        // Fetch all events for this trade ordered by ledger
+        let events = sqlx::query_as::<_, Event>(
+            r#"
+            SELECT id, event_type, contract_id, ledger, transaction_hash, timestamp, data, created_at
+            FROM events
+            WHERE data->>'trade_id' = $1::TEXT
+            ORDER BY ledger ASC, timestamp ASC
+            "#,
+        )
+        .bind(trade_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        if events.is_empty() {
+            return Ok(None);
+        }
+
+        // Build timeline from events
+        let status_events = ["trade_created", "trade_funded", "trade_completed",
+                             "trade_confirmed", "trade_disputed", "trade_cancelled", "dispute_resolved"];
+        let timeline: Vec<TradeTimelineEntry> = events.iter()
+            .filter(|e| status_events.contains(&e.event_type.as_str()))
+            .map(|e| TradeTimelineEntry {
+                status: e.event_type.clone(),
+                ledger: e.ledger,
+                timestamp: Some(e.timestamp),
+                transaction_hash: Some(e.transaction_hash.clone()),
+            })
+            .collect();
+
+        // Extract base trade info from trade_created event
+        let created_event = events.iter().find(|e| e.event_type == "trade_created");
+        let (seller, buyer, amount, arbitrator, metadata) = match created_event {
+            Some(e) => (
+                e.data.get("seller").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                e.data.get("buyer").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                e.data.get("amount").and_then(|v| v.as_i64()).unwrap_or(0),
+                e.data.get("arbitrator").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                e.data.get("metadata").cloned(),
+            ),
+            None => return Ok(None),
+        };
+
+        // Determine current status from last status event
+        let status = timeline.last().map(|t| t.status.clone()).unwrap_or_else(|| "trade_created".to_string());
+        let created_at = created_event.map(|e| e.timestamp).unwrap_or_default();
+        let updated_at = timeline.last().and_then(|t| t.timestamp);
+
+        // Extract fee/payout from confirmed event if present
+        let confirmed = events.iter().find(|e| e.event_type == "trade_confirmed");
+        let fee = confirmed.and_then(|e| e.data.get("fee").and_then(|v| v.as_i64()));
+        let seller_payout = confirmed.and_then(|e| e.data.get("payout").and_then(|v| v.as_i64()));
+
+        Ok(Some(TradeDetailResponse {
+            trade_id,
+            seller,
+            buyer,
+            amount,
+            fee,
+            seller_payout,
+            arbitrator,
+            status,
+            created_at,
+            updated_at,
+            timeline,
+            transaction_history: events,
+            metadata,
+        }))
+    }
+
     pub async fn get_search_history(&self, limit: i64) -> Result<Vec<SearchHistoryEntry>, AppError> {
         let rows = sqlx::query_as::<_, SearchHistoryEntry>(
             r#"
