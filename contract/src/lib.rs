@@ -2,6 +2,7 @@
 
 mod analytics;
 mod amm;
+mod bridge;
 mod errors;
 mod events;
 mod governance;
@@ -34,6 +35,7 @@ pub use types::{
 };
 pub use queries::{PageParams, SortDirection, TradeFilter, TradeSortField, TradeStats};
 pub use oracle::{OracleEntry, PriceData, PriceValidation};
+pub use bridge::{BridgeProvider, CrossChainTrade, BridgeAttestation, BridgeValidation};
 pub use upgrade::{RollbackSnapshot, UpgradeProposal};
 pub use proxy::*;
 
@@ -564,6 +566,7 @@ impl StellarEscrowContract {
         save_trade(&env, trade_id, &trade);
         events::emit_trade_created(&env, trade_id, seller.clone(), buyer.clone(), amount);
         events::emit_compliance_passed(&env, trade_id, seller, buyer, amount);
+        analytics::on_trade_created(&env, amount, &trade.seller, &trade.buyer);
         Ok(trade_id)
     }
 
@@ -850,8 +853,19 @@ impl StellarEscrowContract {
                 }
                 save_arbitrator_reputation(&env, arbitrator, &rep);
                 events::emit_arb_rep_updated(&env, arbitrator.clone(), rep.resolved_count, rep.rating_sum, rep.rating_count);
+                let resolution_code: u8 = match resolution {
+                    DisputeResolution::ReleaseToBuyer => 0,
+                    DisputeResolution::ReleaseToSeller => 1,
+                    DisputeResolution::Partial { .. } => 2,
+                };
+                analytics::on_dispute_resolved(&env, arbitrator, resolution_code);
             }
             Some(ArbitrationConfig::MultiSig(config)) => {
+                let resolution_code: u8 = match resolution {
+                    DisputeResolution::ReleaseToBuyer => 0,
+                    DisputeResolution::ReleaseToSeller => 1,
+                    DisputeResolution::Partial { .. } => 2,
+                };
                 for i in 0..config.arbitrators.len() {
                     let arb = config.arbitrators.get(i).unwrap();
                     let mut rep = storage::get_arbitrator_reputation(&env, arb);
@@ -863,28 +877,17 @@ impl StellarEscrowContract {
                     }
                     save_arbitrator_reputation(&env, arb, &rep);
                     events::emit_arb_rep_updated(&env, arb.clone(), rep.resolved_count, rep.rating_sum, rep.rating_count);
+                    analytics::on_dispute_resolved(&env, &arb, resolution_code);
                 }
                 // Clear votes after resolution
                 storage::clear_votes_for_trade(&env, trade_id, &config.arbitrators);
             }
             None => {}
         }
-        save_arbitrator_reputation(&env, &arbitrator, &rep);
-        events::emit_arb_rep_updated(&env, arbitrator.clone(), rep.resolved_count, rep.rating_sum, rep.rating_count);
-        set_currency_fees(&env, &trade.currency, new_fees);
-        let token = get_usdc_token(&env)?;
-        let token_client = TokenClient::new(&env, &token);
-        token_client.transfer(&env.current_contract_address(), &recipient, &(payout as i128));
-        // Single read-modify-write for fees
-        add_accumulated_fees(&env, trade.fee)?;
-        let resolution_code: u8 = match resolution {
-            DisputeResolution::ReleaseToBuyer => 0,
-            DisputeResolution::ReleaseToSeller => 1,
-            DisputeResolution::Partial { .. } => 2,
-        };
-        analytics::on_dispute_resolved(&env, &arbitrator, resolution_code);
-        events::emit_dispute_resolved(&env, trade_id, resolution, recipient);
-        Ok(()) for the arbitrator of a resolved dispute.
+        Ok(())
+    }
+
+    /// Rate the arbitrator of a resolved dispute.
     /// Only the buyer or seller of the trade may rate, once each.
     pub fn rate_arbitrator(env: Env, trade_id: u64, rater: Address, stars: u32) -> Result<(), ContractError> {
         if !is_initialized(&env) {
@@ -1443,6 +1446,70 @@ impl StellarEscrowContract {
     /// Get total number of proposals created.
     pub fn get_proposal_count(env: Env) -> u64 {
         governance::proposal_count(&env)
+    }
+
+    // -------------------------------------------------------------------------
+    // Governance Token System
+    // -------------------------------------------------------------------------
+
+    /// Initialize governance token (admin only, called once during setup).
+    /// Mints `GOV_TOTAL_SUPPLY` tokens to the specified initial holder.
+    pub fn initialize_gov_token(
+        env: Env,
+        admin: Address,
+        gov_token: Address,
+        initial_holder: Address,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        require_admin(&env, &admin)?;
+        governance::initialize_gov_token(&env, &gov_token, &initial_holder)
+    }
+
+    /// Get the governance token address.
+    pub fn get_gov_token(env: Env) -> Result<Address, ContractError> {
+        governance::get_gov_token_address(&env)
+    }
+
+    /// Get voting power of an address (accounting for delegation).
+    pub fn get_voting_power(env: Env, voter: Address) -> i128 {
+        governance::get_voting_power(&env, &voter)
+    }
+
+    /// Get total voting power (total supply of governance tokens).
+    pub fn get_total_voting_power(env: Env) -> i128 {
+        governance::get_total_voting_power(&env)
+    }
+
+    /// Get quorum requirement in tokens.
+    pub fn get_quorum_requirement(env: Env) -> i128 {
+        governance::get_quorum_requirement(&env)
+    }
+
+    /// Get proposal threshold in tokens.
+    pub fn get_proposal_threshold(env: Env) -> i128 {
+        governance::get_proposal_threshold(&env)
+    }
+
+    /// Get voting period in ledgers.
+    pub fn get_voting_period(env: Env) -> u32 {
+        governance::get_voting_period(&env)
+    }
+
+    /// Check if a proposal has passed (voting ended and quorum + majority met).
+    pub fn has_proposal_passed(env: Env, proposal_id: u64) -> Result<bool, ContractError> {
+        governance::has_proposal_passed(&env, proposal_id)
+    }
+
+    /// Get voting summary for a proposal (votes_for, votes_against, voting_ended).
+    pub fn get_voting_summary(env: Env, proposal_id: u64) -> Result<(i128, i128, bool), ContractError> {
+        governance::get_voting_summary(&env, proposal_id)
+    }
+
+    /// Get proposal details by ID.
+    pub fn get_proposal_details(env: Env, proposal_id: u64) -> Result<Proposal, ContractError> {
+        governance::get_proposal_details(&env, proposal_id)
+    }
+
     // Upgrade Mechanism
     // -------------------------------------------------------------------------
 
@@ -1828,6 +1895,26 @@ impl StellarEscrowContract {
     /// `window` selects the time period: `Last24h`, `Last7d`, `Last30d`, or `AllTime`.
     pub fn analytics_query(env: Env, window: analytics::TimeWindow) -> analytics::AnalyticsResult {
         analytics::analytics_query(&env, window)
+    }
+
+    /// Volume stats: total trades, total value, and window-scoped volume.
+    pub fn get_volume_stats(env: Env, window: analytics::TimeWindow) -> analytics::VolumeStats {
+        analytics::get_volume_stats(&env, window)
+    }
+
+    /// Success-rate breakdown: completed / disputed / cancelled counts + rate in bps.
+    pub fn get_success_rate(env: Env) -> analytics::SuccessRateStats {
+        analytics::get_success_rate(&env)
+    }
+
+    /// Platform usage: active escrows, unique participants, fees collected.
+    pub fn get_platform_usage(env: Env) -> analytics::PlatformUsage {
+        analytics::get_platform_usage(&env)
+    }
+
+    /// All metrics scoped to an arbitrary ledger-timestamp range [start_time, end_time].
+    pub fn get_analytics_by_period(env: Env, start_time: u64, end_time: u64) -> analytics::PeriodAnalytics {
+        analytics::get_analytics_by_period(&env, start_time, end_time)
     }
 
     // AMM — Automated Market Making

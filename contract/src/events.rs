@@ -21,6 +21,7 @@ fn cat_sub()   -> Symbol { symbol_short!("sub") }
 fn cat_gov()   -> Symbol { symbol_short!("gov") }
 fn cat_sys()   -> Symbol { symbol_short!("sys") }
 fn cat_ins()   -> Symbol { symbol_short!("ins") }
+fn cat_brg()   -> Symbol { symbol_short!("brg") }
 
 // ---------------------------------------------------------------------------
 // Structured event payloads
@@ -90,6 +91,8 @@ pub struct EvSubscriptionRenewed  { pub v: u32, pub subscriber: Address, pub tie
 pub struct EvSubscriptionCancelled { pub v: u32, pub subscriber: Address }
 
 #[contracttype] #[derive(Clone, Debug)]
+pub struct EvGovTokenInitialized { pub v: u32, pub token: Address, pub initial_holder: Address, pub supply: i128 }
+#[contracttype] #[derive(Clone, Debug)]
 pub struct EvProposalCreated  { pub v: u32, pub proposal_id: u64, pub proposer: Address }
 #[contracttype] #[derive(Clone, Debug)]
 pub struct EvVoteCast         { pub v: u32, pub proposal_id: u64, pub voter: Address, pub support: bool, pub weight: i128 }
@@ -97,6 +100,26 @@ pub struct EvVoteCast         { pub v: u32, pub proposal_id: u64, pub voter: Add
 pub struct EvProposalExecuted { pub v: u32, pub proposal_id: u64 }
 #[contracttype] #[derive(Clone, Debug)]
 pub struct EvDelegated        { pub v: u32, pub delegator: Address, pub delegatee: Address }
+
+// Bridge events
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeProviderRegistered { pub v: u32, pub provider: String, pub oracle: Address }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeProviderDeactivated { pub v: u32, pub provider: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeTradeCreated { pub v: u32, pub trade_id: u64, pub source_chain: String, pub source_tx_hash: String, pub bridge_provider: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationReceived { pub v: u32, pub trade_id: u64, pub attestation_id: String, pub status: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationConfirmed { pub v: u32, pub trade_id: u64, pub confirmations: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeAttestationFailed { pub v: u32, pub trade_id: u64, pub error_code: u32, pub retry_count: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeTradeRolledBack { pub v: u32, pub trade_id: u64, pub reason: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgePaused { pub v: u32 }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvBridgeResumed { pub v: u32 }
 
 #[contracttype] #[derive(Clone, Debug)]
 pub struct EvPaused           { pub v: u32, pub admin: Address }
@@ -174,6 +197,12 @@ pub fn emit_compliance_updated(env: &Env, user: Address) {
         (cat_compliance(), symbol_short!("updated")),
         EvComplianceUpdated { v: EVENT_VERSION, user },
     );
+pub fn emit_compliance_failed(env: &Env, user: Address, reason: &soroban_sdk::String) {
+    env.events().publish((cat_sys(), symbol_short!("compl_fail")), EvComplianceFailed { v: EVENT_VERSION, user, reason: reason.clone() });
+}
+
+pub fn emit_compliance_passed(env: &Env, trade_id: u64, seller: Address, buyer: Address, amount: u64) {
+    env.events().publish((cat_sys(), symbol_short!("compl_pass")), EvCompliancePassed { v: EVENT_VERSION, trade_id, seller, buyer, amount });
 }
 
 pub fn emit_trade_funded(env: &Env, trade_id: u64) {
@@ -277,6 +306,10 @@ pub fn emit_delegated(env: &Env, delegator: Address, delegatee: Address) {
     env.events().publish((cat_gov(), symbol_short!("delegat")), EvDelegated { v: EVENT_VERSION, delegator, delegatee });
 }
 
+pub fn emit_gov_token_initialized(env: &Env, token: Address, initial_holder: Address, supply: i128) {
+    env.events().publish((cat_gov(), symbol_short!("gov_init")), EvGovTokenInitialized { v: EVENT_VERSION, token, initial_holder, supply });
+}
+
 pub fn emit_paused(env: &Env, admin: Address) {
     env.events().publish((cat_sys(), symbol_short!("paused")), EvPaused { v: EVENT_VERSION, admin });
 }
@@ -355,6 +388,19 @@ pub fn emit_oracle_price_fetched(env: &Env, base: Address, quote: Address, price
 pub fn emit_oracle_unavailable(env: &Env, base: Address, quote: Address) {
     env.events().publish((cat_oracle(), symbol_short!("orc_err")), EvOracleUnavailable { v: EVENT_VERSION, base, quote });
 }
+
+// ---------------------------------------------------------------------------
+// Upgrade system events
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Compliance event payloads
+// ---------------------------------------------------------------------------
+
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvComplianceFailed  { pub v: u32, pub user: Address, pub reason: String }
+#[contracttype] #[derive(Clone, Debug)]
+pub struct EvCompliancePassed  { pub v: u32, pub trade_id: u64, pub seller: Address, pub buyer: Address, pub amount: u64 }
 
 // ---------------------------------------------------------------------------
 // Upgrade system events
