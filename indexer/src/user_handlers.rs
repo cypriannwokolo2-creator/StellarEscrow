@@ -1,9 +1,7 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
-    routing::{get, patch, post, put},
-    Router,
 };
 use chrono::Utc;
 use serde_json::json;
@@ -12,7 +10,7 @@ use crate::error::AppError;
 use crate::handlers::AppState;
 use crate::models::{
     RegisterUserRequest, SetPreferenceRequest, SetVerificationRequest, UpdateProfileRequest,
-    UserAnalyticsRow, UserPreference, UserProfile,
+    UserAnalyticsRow, UserPreference, UserProfile, UserSearchQuery,
 };
 
 /// POST /users — register a new user profile
@@ -180,4 +178,21 @@ pub async fn set_verification(
     }
 
     Ok(Json(json!({ "address": address, "verification": req.status })))
+}
+
+/// GET /users/search?q=…&limit=25&offset=0 — full-text search over user profiles
+pub async fn search_users(
+    State(state): State<AppState>,
+    Query(params): Query<UserSearchQuery>,
+) -> Result<Json<Vec<UserProfile>>, AppError> {
+    let q = params.q.unwrap_or_default();
+    let limit = params.limit.unwrap_or(25);
+    let offset = params.offset.unwrap_or(0);
+
+    if !q.is_empty() {
+        state.database.record_search(&q, "users").await?;
+    }
+
+    let results = state.database.search_users(&q, limit, offset).await?;
+    Ok(Json(results))
 }
