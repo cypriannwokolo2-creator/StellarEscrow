@@ -19,6 +19,7 @@ mod tiers;
 mod types;
 mod upgrade;
 mod proxy;
+mod insurance;
 
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env};
 
@@ -65,6 +66,7 @@ use storage::{
     save_arbitrator, save_arbitrator_reputation, save_trade, set_accumulated_fees, set_admin,
     set_currency_fees, set_fee_bps, set_initialized, set_paused, set_trade_counter,
     set_usdc_token, CrossChainInfo, InsurancePolicy,
+    has_insurance_provider, save_insurance_provider, remove_insurance_provider,
 };
 
 fn token_client<'a>(env: &'a Env, token: &Address) -> token::Client<'a> {
@@ -401,6 +403,60 @@ impl StellarEscrowContract {
         Ok(())
     }
 
+    // -------------------------------------------------------------------------
+    // Trade Insurance
+    // -------------------------------------------------------------------------
+
+    /// Register an insurance provider (admin only)
+    pub fn register_insurance_provider(env: Env, provider: Address) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        require_not_paused(&env)?;
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+        save_insurance_provider(&env, &provider);
+        events::emit_insurance_provider_registered(&env, provider);
+        Ok(())
+    }
+
+    /// Remove an insurance provider (admin only)
+    pub fn remove_insurance_provider_fn(env: Env, provider: Address) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        require_not_paused(&env)?;
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+        remove_insurance_provider(&env, &provider);
+        events::emit_insurance_provider_removed(&env, provider);
+        Ok(())
+    }
+
+    /// Purchase optional trade insurance for a created trade
+    pub fn purchase_insurance(
+        env: Env,
+        trade_id: u64,
+        buyer: Address,
+        provider: Address,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        require_not_paused(&env)?;
+        insurance::purchase_insurance(&env, trade_id, buyer, provider)
+    }
+
+    /// Claim insurance payout for a disputed trade
+    pub fn claim_insurance(
+        env: Env,
+        trade_id: u64,
+        recipient: Address,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        require_not_paused(&env)?;
+        insurance::claim_insurance(&env, trade_id, recipient)
+    }
+
+    /// Calculate insurance premium for a given trade amount
+    pub fn get_insurance_premium(env: Env, amount: u64, provider: Address) -> u64 {
+        insurance::calculate_premium(&env, amount, &provider)
+    }
+
     pub fn set_user_compliance(
         env: Env,
         admin: Address,
@@ -668,6 +724,8 @@ impl StellarEscrowContract {
         events::emit_trade_funded(&env, trade_id);
         analytics::on_trade_funded(&env);
         Ok(())
+    }
+
     pub fn complete_trade(env: Env, trade_id: u64) -> Result<(), ContractError> {
         require_initialized(&env)?;
         require_not_paused(&env)?;
@@ -712,6 +770,8 @@ impl StellarEscrowContract {
         events::emit_trade_confirmed(&env, trade_id, payout, trade.fee);
         analytics::on_trade_completed(&env, trade.fee);
         Ok(())
+    }
+
     pub fn raise_dispute(env: Env, trade_id: u64, caller: Address) -> Result<(), ContractError> {
         if !is_initialized(&env) {
             return Err(ContractError::NotInitialized);
@@ -758,6 +818,8 @@ impl StellarEscrowContract {
         events::emit_dispute_raised(&env, trade_id, caller);
         analytics::on_trade_disputed(&env);
         Ok(())
+    }
+
     /// Use `DisputeResolution::Partial { buyer_bps }` for a split:
     /// `buyer_bps` is the buyer's share of the net payout in basis points (0–10000).
     pub fn resolve_dispute(
