@@ -8,6 +8,7 @@ import {
 } from './types';
 import { loadConfig, ApiConfig } from './config';
 import { API_ENDPOINT_CONTRACTS } from './contracts';
+import { ComplianceApi } from './compliance/compliance';
 
 function normalizeBaseUrl(baseURL: string): string {
   const trimmed = baseURL.replace(/\/+$/, '');
@@ -32,12 +33,14 @@ export class EscrowApi {
   public trades: TradesApi;
   public events: EventsApi;
   public blockchain: BlockchainApi;
+  public compliance: ComplianceApi;
 
   constructor(config: ApiClientConfig) {
     this.client = new ApiClient(config);
     this.trades = new TradesApi(this.client);
     this.events = new EventsApi(this.client);
     this.blockchain = new BlockchainApi(this.client);
+    this.compliance = new ComplianceApi(this.client);
   }
 
   addRequestInterceptor(interceptor: RequestInterceptor) {
@@ -89,7 +92,7 @@ export const createApi = (baseURL: string, mockEnabled = false): EscrowApi => {
     },
   });
 };
-
+export { ComplianceApi } from './compliance/compliance';
 export { ApiClient } from './client';
 export { TradesApi, EventsApi, BlockchainApi } from './resources';
 export { loadConfig } from './config';
@@ -119,3 +122,4 @@ export type {
   PerformanceThresholds,
   ScenarioExecutionContext,
 } from './performance';
+
