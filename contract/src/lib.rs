@@ -323,7 +323,8 @@ impl StellarEscrowContract {
         let resolution = multisig::resolve_expired_dispute(&env, trade_id, &admin)?;
         let trade = get_trade(&env, trade_id)?;
         StellarEscrowContract::execute_dispute_resolution(env, trade_id, resolution, trade)
-    // Arbitrator Reputation
+    }
+
     // -------------------------------------------------------------------------
 
     /// Rate the arbitrator of a disputed trade (buyer or seller, once each).
@@ -1000,7 +1001,10 @@ impl StellarEscrowContract {
         save_trade(&env, trade_id, &trade);
         events::emit_trade_cancelled(&env, trade_id);
         analytics::on_trade_cancelled(&env);
-        Ok(()): anyone can call this once the expiry has
+        Ok(())
+    }
+
+    /// anyone can call this once the expiry has
     /// passed and the trade is Funded or Completed (not Disputed/Cancelled).
     /// Funds are released to the seller minus the platform fee.
     pub fn claim_time_release(env: Env, trade_id: u64) -> Result<(), ContractError> {
@@ -1179,23 +1183,14 @@ impl StellarEscrowContract {
         events::emit_unpaused(&env, admin);
         Ok(())
     }
-
     /// Emergency withdrawal of all contract token balance (admin only).
-    pub fn emergency_withdraw(env: Env, to: Address) -> Result<(), ContractError> {
-        if !is_initialized(&env) {
-            return Err(ContractError::NotInitialized);
-        }
-        let admin = get_admin(&env)?;
-        admin.require_auth();
-        let token = get_usdc_token(&env)?;
-        let token_client = token::Client::new(&env, &token);
     /// Allowed even while paused so funds can always be recovered.
     pub fn emergency_withdraw(env: Env, to: Address) -> Result<(), ContractError> {
         require_initialized(&env)?;
         let admin = get_admin(&env)?;
         admin.require_auth();
         let token = get_usdc_token(&env)?;
-        let token_client = TokenClient::new(&env, &token);
+        let token_client = token::Client::new(&env, &token);
         let balance = token_client.balance(&env.current_contract_address());
         if balance > 0 {
             token_client.transfer(&env.current_contract_address(), &to, &balance);
