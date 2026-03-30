@@ -10,7 +10,7 @@ use crate::config::StellarConfig;
 use crate::database::Database;
 use crate::error::AppError;
 use crate::fraud_service::FraudDetectionService;
-use crate::job_queue::{JobQueue, types::{Job, JobType}};
+use crate::job_queue::{JobQueue, types::{Job, JobPriority, JobType}};
 use crate::models::{Event, WebSocketMessage};
 use crate::websocket::WebSocketManager;
 
@@ -277,6 +277,9 @@ impl EventMonitor {
         };
         self.ws_manager.broadcast(ws_message).await;
 
+        // Notifications are best-effort and should not block the rest of event processing.
+        self.notification_service.process_event(event).await;
+
         // Fraud detection for high-value trade events
         let report = match event.event_type.as_str() {
             "trade_created" => self.fraud_service.process_event(event).await,
@@ -305,22 +308,48 @@ impl EventMonitor {
             }
         }
 
-        // Enqueue background job
-        let job = Job {
-            job_type: JobType::Event,
-            event_id: event.id.to_string(),
-            trade_id: event
-                .data
-                .get("trade_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            payload: event.data.clone(),
+        let trade_id = event
+            .data
+            .get("trade_id")
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| value.to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let event_priority = match event.event_type.as_str() {
+            "dispute_raised" | "dispute_resolved" => JobPriority::Critical,
+            "trade_created" | "trade_funded" | "trade_confirmed" => JobPriority::High,
+            _ => JobPriority::Normal,
         };
+        let event_job = Job::new(
+            JobType::Event,
+            event.id.to_string(),
+            trade_id.clone(),
+            event.data.clone(),
+            event_priority,
+        );
+
+        let notification_job = Job::new(
+            JobType::Notification,
+            event.id.to_string(),
+            trade_id,
+            serde_json::json!({
+                "event_type": event.event_type,
+                "timestamp": event.timestamp,
+                "data": event.data,
+            }),
+            JobPriority::High,
+        );
 
         let mut queue = self.job_queue.lock().await;
-        if let Err(e) = queue.enqueue(job).await {
-            error!("Failed to enqueue job for event {}: {}", event.id, e);
+        if let Err(e) = queue.enqueue(event_job).await {
+            error!("Failed to enqueue event job for event {}: {}", event.id, e);
+        }
+        if let Err(e) = queue.enqueue(notification_job).await {
+            error!("Failed to enqueue notification job for event {}: {}", event.id, e);
         }
     }
 

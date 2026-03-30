@@ -76,8 +76,14 @@ export class EscrowApi {
   }
 }
 
-export const createApi = (baseURL: string, mockEnabled = false): EscrowApi => {
-  const cfg = loadConfig({ baseUrl: normalizeBaseUrl(baseURL), mockEnabled });
+export const createApi = (
+  baseURL: string,
+  configOverrides: Partial<ApiConfig> = {}
+): EscrowApi => {
+  const cfg = loadConfig({
+    baseUrl: normalizeBaseUrl(baseURL),
+    ...configOverrides,
+  });
   return new EscrowApi({
     baseURL: cfg.baseUrl,
     timeout: cfg.timeoutMs,
@@ -110,22 +116,18 @@ export type {
 } from './types';
 export type { ApiConfig };
 export {
-  RateLimitService,
-  DEFAULT_RATE_TIERS,
-  createRateLimitInterceptor,
-  getDefaultRateLimitService,
-  resetDefaultRateLimitService,
-} from './rate-limit';
+  ApiConnector,
+  IntegrationMonitor,
+  IntegrationService,
+} from './integration';
 export type {
-  RateTier,
-  RateTierConfig,
-  RateLimitEntry,
-  RateLimitStatus,
-  RateLimitNotification,
-  RateLimitNotificationHandler,
-  RateLimitMonitorSnapshot,
-  RateLimitServiceOptions,
-} from './rate-limit';
+  IntegrationConfig,
+  IntegrationEvent,
+  IntegrationHealth,
+  IntegrationMetrics,
+  IntegrationProvider,
+  IntegrationStatus,
+} from './integration';
 export type {
   OperationPerformanceSummary,
   PerformanceAlert,
