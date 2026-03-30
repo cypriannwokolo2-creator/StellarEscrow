@@ -24,6 +24,10 @@ pub use analytics::{
 };
 pub use errors::ContractError;
 pub use types::{
+    ArbitrationConfig, ArbitratorReputation, ArbitratorVote, DisclosureGrant, DisputeResolution,
+    InsurancePolicy, MultiSigConfig, Proposal, ProposalAction, ProposalStatus, Subscription,
+    SubscriptionTier, TierConfig, TierStatus, TierThresholds, TemplateTerms, TemplateVersion,
+    Trade, TradePrivacy, TradeStatus, TradeTemplate, UserTier, UserTierInfo, VotingSummary,
     ArbitrationConfig, CrossChainInfo, DisputeResolution, InsurancePolicy, KycStatus,
     OptionalMetadata, Trade, TradeStatus, UserCompliance, MAX_INSURANCE_PREMIUM_BPS,
     MAX_METADATA_SIZE,
@@ -1000,6 +1004,80 @@ impl StellarEscrowContract {
         Ok(())
     }
 
+    /// Query a user's current tier info.
+    pub fn get_user_tier(env: Env, user: Address) -> Option<UserTierInfo> {
+        storage::get_user_tier(&env, &user)
+    }
+
+    /// Query the current tier fee configuration.
+    pub fn get_tier_config(env: Env) -> Option<TierConfig> {
+        storage::get_tier_config(&env)
+    }
+
+    /// Query the effective fee bps for a user's next trade.
+    pub fn get_effective_fee_bps(env: Env, user: Address) -> Result<u32, ContractError> {
+        let base = get_fee_bps(&env)?;
+        Ok(tiers::effective_fee_bps(&env, &user, base))
+    }
+
+    /// Query the volume thresholds required to reach Silver and Gold tiers.
+    pub fn get_tier_thresholds(_env: Env) -> TierThresholds {
+        tiers::get_tier_thresholds()
+    }
+
+    /// Query additional trading volume a user needs to reach the next tier.
+    /// Returns 0 if the user is already at Gold or has a custom fee.
+    pub fn get_volume_to_next_tier(env: Env, user: Address) -> u64 {
+        let info = storage::get_user_tier(&env, &user).unwrap_or(UserTierInfo {
+            tier: UserTier::Bronze,
+            total_volume: 0,
+            custom_fee_bps: None,
+        });
+        tiers::volume_to_next_tier(&info)
+    }
+
+    /// Query a complete tier status snapshot for a user: current tier, cumulative
+    /// volume, volume needed to reach the next tier, and effective fee bps.
+    pub fn get_user_tier_status(env: Env, user: Address) -> Result<TierStatus, ContractError> {
+        require_initialized(&env)?;
+        tiers::get_tier_status(&env, &user)
+    }
+
+    // -------------------------------------------------------------------------
+    // Trade Templates
+    // -------------------------------------------------------------------------
+
+    /// Create a reusable trade template (owner = seller).
+    pub fn create_template(
+        env: Env,
+        owner: Address,
+        name: soroban_sdk::String,
+        terms: TemplateTerms,
+    ) -> Result<u64, ContractError> {
+        require_initialized(&env)?;
+        owner.require_auth();
+        templates::create_template(&env, &owner, name, terms)
+    }
+
+    /// Update a template with new terms, bumping its version.
+    pub fn update_template(
+        env: Env,
+        caller: Address,
+        template_id: u64,
+        name: soroban_sdk::String,
+        terms: TemplateTerms,
+    ) -> Result<(), ContractError> {
+        require_initialized(&env)?;
+        caller.require_auth();
+        templates::update_template(&env, &caller, template_id, name, terms)
+    }
+
+    /// Deactivate a template so it can no longer be used to create trades.
+    pub fn deactivate_template(
+        env: Env,
+        caller: Address,
+        template_id: u64,
+    ) -> Result<(), ContractError> {
     pub fn set_bridge_oracle(env: Env, oracle: Address) -> Result<(), ContractError> {
         require_initialized(&env)?;
         storage::get_admin(&env)?.require_auth();
