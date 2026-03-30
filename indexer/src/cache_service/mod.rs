@@ -354,6 +354,34 @@ impl CacheService {
         if !keys.iter().any(|existing| existing == key) {
             keys.push(key.to_string());
         }
+    pub async fn get_search<T: serde::de::DeserializeOwned>(&self, cache_key: &str) -> Option<T> {
+        self.get(cache_key).await
+    }
+
+    pub async fn set_search<T: serde::Serialize>(&self, cache_key: &str, value: &T) {
+        let ttl = Duration::from_secs(self.config.search_ttl_secs);
+        self.set(cache_key, value, ttl).await;
+    }
+
+    pub async fn get_analytics<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
+        self.get(KEY_ANALYTICS_DASHBOARD).await
+    }
+
+    pub async fn set_analytics<T: serde::Serialize>(&self, value: &T) {
+        let ttl = Duration::from_secs(self.config.analytics_ttl_secs);
+        self.set(KEY_ANALYTICS_DASHBOARD, value, ttl).await;
+    }
+
+    /// Warm the cache by pre-loading frequently accessed keys.
+    /// Called at startup and periodically.
+    pub async fn warm<F, Fut>(&self, loader: F)
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        tracing::info!("Cache warming started");
+        loader().await;
+        tracing::info!("Cache warming complete");
     }
 
     async fn untrack_key(&self, key: &str) {
